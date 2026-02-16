@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
+import { rateLimit, EVENTS_RATE_LIMIT } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
+    // Rate limit by IP
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+    const rl = rateLimit(`events:${ip}`, EVENTS_RATE_LIMIT)
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } }
+      )
+    }
+
     const body = await request.json()
     const { api_key, agent_name, framework, events } = body
 
     if (!api_key || !events || !Array.isArray(events)) {
       return NextResponse.json({ error: 'Missing required fields: api_key, events' }, { status: 400 })
+    }
+
+    // Limit batch size
+    if (events.length > 100) {
+      return NextResponse.json({ error: 'Batch too large. Max 100 events per request.' }, { status: 400 })
     }
 
     const supabase = createServerSupabaseClient()

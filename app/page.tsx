@@ -178,8 +178,8 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Recommendations</li>
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> CSV export</li>
               </ul>
-              <Link href="/signup" className="block w-full text-center bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
-                Start Free Trial
+              <Link href="/pay/crypto" className="block w-full text-center bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+                Get Pro Access
               </Link>
             </div>
             {/* Team */}
@@ -196,10 +196,24 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> API access</li>
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Webhooks</li>
               </ul>
-              <Link href="/signup" className="block w-full text-center border border-[#2A2A2D] hover:border-[#3A3A3D] text-[#FAFAFA] px-4 py-2.5 rounded-lg text-sm font-medium transition">
-                Contact Us
+              <Link href="/pay/crypto" className="block w-full text-center border border-[#2A2A2D] hover:border-[#3A3A3D] text-[#FAFAFA] px-4 py-2.5 rounded-lg text-sm font-medium transition">
+                Get Team Access
               </Link>
             </div>
+          </div>
+
+          {/* Crypto option */}
+          <div className="mt-8 bg-[#141415] border border-[#F59E0B]/30 rounded-xl p-6 text-center">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <h3 className="text-[#FAFAFA] font-semibold">Pay with Crypto</h3>
+            </div>
+            <p className="text-sm text-[#A1A1AA] mb-3">
+              Prefer a one-time payment? Get lifetime access with ETH — <strong className="text-[#FAFAFA]">$199 Pro</strong> or <strong className="text-[#FAFAFA]">$499 Team</strong>.
+            </p>
+            <Link href="/pay/crypto" className="inline-block bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/30 px-5 py-2 rounded-lg text-sm font-medium transition">
+              Pay with ETH
+            </Link>
           </div>
         </div>
       </section>
