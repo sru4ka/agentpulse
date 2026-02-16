@@ -6,7 +6,7 @@ DEFAULT_CONFIG_PATH = os.path.expanduser("~/.openclaw/agentpulse.yaml")
 
 DEFAULT_CONFIG = {
     "api_key": "",
-    "endpoint": "https://agentpulse.vercel.app/api/events",
+    "endpoint": "https://agentpulses.com/api/events",
     "agent_name": "default",
     "framework": "openclaw",
     "log_path": "/tmp/openclaw/",

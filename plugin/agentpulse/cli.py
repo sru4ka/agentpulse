@@ -157,12 +157,17 @@ def cmd_test(args):
         class PostRedirectHandler(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
                 if code in (307, 308):
-                    new_req = urllib.request.Request(
+                    # Strip Host header to avoid mismatch on cross-domain redirects
+                    new_headers = {
+                        k: v for k, v in req.header_items()
+                        if k.lower() not in ("host", "content-length")
+                    }
+                    new_headers["Content-length"] = str(len(req.data)) if req.data else "0"
+                    return urllib.request.Request(
                         newurl, data=req.data,
-                        headers=dict(req.header_items()),
+                        headers=new_headers,
                         method=req.get_method(),
                     )
-                    return new_req
                 return super().redirect_request(req, fp, code, msg, headers, newurl)
 
         opener = urllib.request.build_opener(PostRedirectHandler)
