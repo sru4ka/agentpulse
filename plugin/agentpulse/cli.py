@@ -152,13 +152,27 @@ def cmd_test(args):
 
     try:
         data = json.dumps(payload).encode("utf-8")
+
+        # Use a redirect handler that re-sends POST on 307/308
+        class PostRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                if code in (307, 308):
+                    new_req = urllib.request.Request(
+                        newurl, data=req.data,
+                        headers=dict(req.header_items()),
+                        method=req.get_method(),
+                    )
+                    return new_req
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+        opener = urllib.request.build_opener(PostRedirectHandler)
         req = urllib.request.Request(
             config["endpoint"],
             data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with opener.open(req, timeout=15) as resp:
             result = json.loads(resp.read().decode())
             if resp.status == 200 and result.get("success"):
                 print("✅ Connection successful!")
