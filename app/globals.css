@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0A0A0B;
+  --bg-card: #141415;
+  --border: #2A2A2D;
+  --accent: #7C3AED;
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2A2A2D #0A0A0B;
+}
+
+body {
+  min-height: 100vh;
+  background: #0A0A0B;
+  color: #FAFAFA;
+}
+
+::selection {
+  background: #7C3AED40;
+}

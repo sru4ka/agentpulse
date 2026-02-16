@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "agentpulse"
+version = "0.1.0"
+description = "AI Agent Observability — track costs, monitor performance, optimize your agents"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+agentpulse = "agentpulse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
