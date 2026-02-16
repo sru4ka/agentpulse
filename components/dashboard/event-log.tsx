@@ -4,6 +4,12 @@ import { useState } from "react";
 import { formatCost, formatNumber, formatLatency, timeAgo } from "@/lib/utils";
 import EventDetail from "./event-detail";
 
+interface PromptMessage {
+  role: string;
+  content: string;
+  tool?: string;
+}
+
 interface Event {
   id: string;
   timestamp: string;
@@ -19,6 +25,8 @@ interface Event {
   tools_used: string[];
   error_message: string | null;
   metadata: Record<string, any> | null;
+  prompt_messages: PromptMessage[] | null;
+  response_text: string | null;
 }
 
 interface EventLogProps {
@@ -43,6 +51,17 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function PromptIndicator({ hasPrompt }: { hasPrompt: boolean }) {
+  if (!hasPrompt) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-[#7C3AED] bg-[#7C3AED]/10 px-1.5 py-0.5 rounded" title="Prompt data available">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+      </svg>
+    </span>
+  );
+}
+
 export default function EventLog({ events, title = "Recent Events", showFilters = false }: EventLogProps) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -58,15 +77,15 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
 
   return (
     <>
-      <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-4 lg:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
           <h3 className="text-sm font-medium text-[#FAFAFA]">{title}</h3>
           {showFilters && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED]"
+                className="flex-1 sm:flex-none bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED]"
               >
                 <option value="all">All statuses</option>
                 <option value="success">Success</option>
@@ -76,7 +95,7 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
               <select
                 value={modelFilter}
                 onChange={(e) => setModelFilter(e.target.value)}
-                className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED]"
+                className="flex-1 sm:flex-none bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED]"
               >
                 <option value="all">All models</option>
                 {models.map((m) => (
@@ -86,7 +105,9 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
             </div>
           )}
         </div>
-        <div className="overflow-x-auto">
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#2A2A2D]">
@@ -111,7 +132,10 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
                     {timeAgo(event.timestamp)}
                   </td>
                   <td className="py-3 px-3 text-[#FAFAFA] whitespace-nowrap font-medium">
-                    {event.model}
+                    <span className="flex items-center gap-1.5">
+                      {event.model}
+                      <PromptIndicator hasPrompt={!!(event.prompt_messages && event.prompt_messages.length > 0)} />
+                    </span>
                   </td>
                   <td className="py-3 px-3 text-[#A1A1AA] text-right whitespace-nowrap">
                     {formatNumber(event.input_tokens)} / {formatNumber(event.output_tokens)}
@@ -137,9 +161,48 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
             </tbody>
           </table>
         </div>
+
+        {/* Mobile card list */}
+        <div className="sm:hidden space-y-2">
+          {filtered.map((event) => (
+            <div
+              key={event.id}
+              onClick={() => setSelectedEvent(event)}
+              className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3 cursor-pointer hover:border-[#7C3AED]/30 transition"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-[#FAFAFA] font-medium flex items-center gap-1.5">
+                  {event.model}
+                  <PromptIndicator hasPrompt={!!(event.prompt_messages && event.prompt_messages.length > 0)} />
+                </span>
+                <StatusBadge status={event.status} />
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="text-[#A1A1AA]">Cost</span>
+                  <p className="text-[#FAFAFA] font-medium">{formatCost(event.cost_usd)}</p>
+                </div>
+                <div>
+                  <span className="text-[#A1A1AA]">Tokens</span>
+                  <p className="text-[#FAFAFA] font-medium">{formatNumber(event.total_tokens || (event.input_tokens + event.output_tokens))}</p>
+                </div>
+                <div>
+                  <span className="text-[#A1A1AA]">Time</span>
+                  <p className="text-[#FAFAFA] font-medium">{timeAgo(event.timestamp)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <p className="py-8 text-center text-[#A1A1AA] text-sm">
+              {events.length === 0 ? "No events recorded yet." : "No events match the filters."}
+            </p>
+          )}
+        </div>
+
         {events.length > 0 && (
           <p className="text-xs text-[#A1A1AA] mt-3">
-            Click any event to see full details and cost breakdown
+            Click any event to see full details, cost breakdown, and prompt replay
           </p>
         )}
       </div>

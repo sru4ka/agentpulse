@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 
 from .config import load_config
-from .parser import parse_line
+from .parser import parse_line, parse_prompt_line
 from .sender import EventSender
 
 logger = logging.getLogger("agentpulse")
@@ -21,6 +21,8 @@ class AgentPulseDaemon:
         )
         self.running = False
         self.file_positions: dict[str, int] = {}
+        # Buffer for collecting prompt context between model events
+        self._context_buffer: list[dict] = []
 
     def get_latest_log_file(self) -> str | None:
         log_path = self.config["log_path"]
@@ -55,12 +57,50 @@ class AgentPulseDaemon:
             return []
 
     def process_lines(self, lines: list[str]):
-        """Parse log lines and buffer events."""
+        """Parse log lines and buffer events, attaching prompt context."""
         for line in lines:
+            # First, try to parse as prompt/response context
+            ctx = parse_prompt_line(line)
+            if ctx:
+                self._context_buffer.append(ctx)
+                continue
+
+            # Then, try to parse as a model event
             event = parse_line(line)
             if event:
+                # Attach buffered prompt context to this event
+                prompt_messages = []
+                response_parts = []
+                tool_calls = []
+
+                for item in self._context_buffer:
+                    if item["type"] == "prompt":
+                        prompt_messages.append({"role": "user", "content": item["content"]})
+                    elif item["type"] == "system_prompt":
+                        prompt_messages.append({"role": "system", "content": item["content"]})
+                    elif item["type"] == "response":
+                        response_parts.append(item["content"])
+                    elif item["type"] == "tool_call":
+                        tool_calls.append(item["tool_name"])
+                        prompt_messages.append({
+                            "role": "tool",
+                            "tool": item["tool_name"],
+                            "content": item.get("tool_args", ""),
+                        })
+
+                event["prompt_messages"] = prompt_messages
+                event["response_text"] = "\n".join(response_parts) if response_parts else None
+
+                # Merge tool calls from context into tools_used
+                if tool_calls:
+                    existing_tools = event.get("tools_used", [])
+                    event["tools_used"] = list(set(existing_tools + tool_calls))
+
+                # Clear context buffer for next event
+                self._context_buffer = []
+
                 self.sender.add_event(event)
-                logger.debug(f"Parsed event: {event['model']} ({event['status']})")
+                logger.debug(f"Parsed event: {event['model']} ({event['status']}) with {len(prompt_messages)} prompt messages")
 
     def run(self):
         """Main daemon loop."""

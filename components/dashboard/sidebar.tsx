@@ -86,6 +86,7 @@ interface SidebarProps {
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [plan, setPlan] = useState<string>("free");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -103,6 +104,11 @@ export default function Sidebar({ user }: SidebarProps) {
     fetchPlan();
   }, []);
 
+  // Close mobile menu on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   const handleSignOut = async () => {
     const supabase = createBrowserSupabaseClient();
     await supabase.auth.signOut();
@@ -111,8 +117,8 @@ export default function Sidebar({ user }: SidebarProps) {
 
   const planColor = PLAN_COLORS[plan] || PLAN_COLORS.free;
 
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-[#0A0A0B] border-r border-[#2A2A2D] flex flex-col z-40">
+  const sidebarContent = (
+    <>
       {/* Logo + Plan Badge */}
       <div className="px-6 py-6">
         <div className="flex items-center gap-2.5">
@@ -176,6 +182,48 @@ export default function Sidebar({ user }: SidebarProps) {
           </button>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-4 left-4 z-50 lg:hidden bg-[#141415] border border-[#2A2A2D] rounded-lg p-2 text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+        aria-label="Open menu"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — desktop: fixed visible, mobile: slide-in */}
+      <aside
+        className={`fixed left-0 top-0 h-screen w-[240px] bg-[#0A0A0B] border-r border-[#2A2A2D] flex flex-col z-50 transition-transform duration-200 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        {/* Mobile close button */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-4 right-4 lg:hidden text-[#A1A1AA] hover:text-[#FAFAFA] transition"
+          aria-label="Close menu"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
