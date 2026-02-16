@@ -7,6 +7,22 @@ from typing import List
 
 logger = logging.getLogger("agentpulse")
 
+
+class _PostRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow 307/308 redirects while preserving POST method and body."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if code in (307, 308):
+            return urllib.request.Request(
+                newurl, data=req.data,
+                headers=dict(req.header_items()),
+                method=req.get_method(),
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_opener = urllib.request.build_opener(_PostRedirectHandler)
+
+
 class EventSender:
     def __init__(self, api_key: str, endpoint: str, agent_name: str, framework: str):
         self.api_key = api_key
@@ -47,7 +63,7 @@ class EventSender:
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with _opener.open(req, timeout=10) as resp:
                 if resp.status == 200:
                     result = json.loads(resp.read().decode())
                     self.events_sent += len(self.buffer)
