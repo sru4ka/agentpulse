@@ -12,9 +12,16 @@ class _PostRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Follow 307/308 redirects while preserving POST method and body."""
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if code in (307, 308):
+            # Strip Host header — carrying the old Host to the redirect
+            # target causes the request to fail on different domains.
+            new_headers = {
+                k: v for k, v in req.header_items()
+                if k.lower() not in ("host", "content-length")
+            }
+            new_headers["Content-length"] = str(len(req.data)) if req.data else "0"
             return urllib.request.Request(
                 newurl, data=req.data,
-                headers=dict(req.header_items()),
+                headers=new_headers,
                 method=req.get_method(),
             )
         return super().redirect_request(req, fp, code, msg, headers, newurl)

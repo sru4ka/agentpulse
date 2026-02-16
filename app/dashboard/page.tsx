@@ -6,6 +6,7 @@ import EventLog from "@/components/dashboard/event-log";
 import AgentCard from "@/components/dashboard/agent-card";
 import CostChart from "@/components/charts/cost-chart";
 import StatusChart from "@/components/charts/status-chart";
+import Recommendations from "@/components/dashboard/recommendations";
 import { formatCost, formatNumber } from "@/lib/utils";
 
 export default function DashboardPage() {
@@ -89,6 +90,9 @@ export default function DashboardPage() {
           <EventLog events={stats?.recent_events || []} />
         </div>
       </div>
+
+      {/* Recommendations */}
+      <Recommendations events={stats?.recent_events || []} dailyStats={stats?.daily_stats || []} />
 
       {/* Agents */}
       {stats?.agents?.length > 0 && (

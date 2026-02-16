@@ -111,6 +111,8 @@ export async function POST(request: Request) {
       task_context: e.task_context || null,
       tools_used: e.tools_used || [],
       metadata: e.metadata || null,
+      prompt_messages: e.prompt_messages || null,
+      response_text: e.response_text || null,
     }))
 
     const { error: insertError } = await supabase
