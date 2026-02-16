@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export default function SettingsPage() {
@@ -11,6 +12,7 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [regenError, setRegenError] = useState("");
   const router = useRouter();
   const supabase = createBrowserSupabaseClient();
 
@@ -39,16 +41,33 @@ export default function SettingsPage() {
 
   const regenerateKey = async () => {
     setRegenerating(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    const res = await fetch("/api/key/regenerate", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    const data = await res.json();
-    if (data.api_key) {
-      setProfile({ ...profile, api_key: data.api_key });
-      setShowKey(true);
+    setRegenError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setRegenError("Session expired. Please refresh the page.");
+        setRegenerating(false);
+        return;
+      }
+      const res = await fetch("/api/key/regenerate", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRegenError(data.error || "Failed to regenerate key");
+        setRegenerating(false);
+        return;
+      }
+      if (data.api_key) {
+        setProfile({ ...profile, api_key: data.api_key });
+        setShowKey(true);
+      }
+    } catch (err: any) {
+      setRegenError("Network error. Please try again.");
     }
     setRegenerating(false);
     setShowConfirm(false);
@@ -57,6 +76,13 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/");
+  };
+
+  const planColor: Record<string, string> = {
+    free: "#A1A1AA",
+    pro: "#7C3AED",
+    team: "#F59E0B",
+    enterprise: "#10B981",
   };
 
   if (loading) {
@@ -68,6 +94,9 @@ export default function SettingsPage() {
     );
   }
 
+  const currentPlan = profile?.plan || "free";
+  const currentPlanColor = planColor[currentPlan] || planColor.free;
+
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold text-[#FAFAFA]">Settings</h1>
@@ -77,7 +106,7 @@ export default function SettingsPage() {
         <h3 className="text-lg font-semibold text-[#FAFAFA] mb-1">API Key</h3>
         <p className="text-sm text-[#A1A1AA] mb-4">Use this key in your AgentPulse plugin configuration.</p>
         <div className="flex items-center gap-3">
-          <code className="flex-1 bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-4 py-2.5 text-sm text-[#FAFAFA] font-mono">
+          <code className="flex-1 bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-4 py-2.5 text-sm text-[#FAFAFA] font-mono truncate">
             {showKey ? profile?.api_key : profile?.api_key?.replace(/./g, "\u2022").slice(0, 20) + "..."}
           </code>
           <button
@@ -99,24 +128,35 @@ export default function SettingsPage() {
               onClick={() => setShowConfirm(true)}
               className="text-sm text-[#EF4444] hover:text-[#F87171] transition"
             >
-              Regenerate API Key
+              Revoke &amp; Regenerate API Key
             </button>
           ) : (
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-[#F59E0B]">This will invalidate your current key. Any connected plugins will stop working until reconfigured.</p>
-              <button
-                onClick={regenerateKey}
-                disabled={regenerating}
-                className="text-sm bg-[#EF4444] hover:bg-[#DC2626] text-white px-4 py-2 rounded-lg font-medium transition whitespace-nowrap disabled:opacity-50"
-              >
-                {regenerating ? "Regenerating..." : "Yes, Regenerate"}
-              </button>
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="text-sm text-[#A1A1AA] hover:text-[#FAFAFA] transition whitespace-nowrap"
-              >
-                Cancel
-              </button>
+            <div className="space-y-3">
+              <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded-lg p-3">
+                <p className="text-sm text-[#F59E0B]">
+                  This will permanently revoke your current key. Any connected plugins will stop working until you reconfigure them with the new key.
+                </p>
+              </div>
+              {regenError && (
+                <div className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-3">
+                  <p className="text-sm text-[#EF4444]">{regenError}</p>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={regenerateKey}
+                  disabled={regenerating}
+                  className="text-sm bg-[#EF4444] hover:bg-[#DC2626] text-white px-4 py-2 rounded-lg font-medium transition whitespace-nowrap disabled:opacity-50"
+                >
+                  {regenerating ? "Regenerating..." : "Yes, Revoke & Regenerate"}
+                </button>
+                <button
+                  onClick={() => { setShowConfirm(false); setRegenError(""); }}
+                  className="text-sm text-[#A1A1AA] hover:text-[#FAFAFA] transition whitespace-nowrap"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -132,7 +172,18 @@ export default function SettingsPage() {
           </div>
           <div className="flex justify-between items-center">
             <span className="text-sm text-[#A1A1AA]">Plan</span>
-            <span className="text-xs bg-[#7C3AED20] text-[#7C3AED] px-2 py-0.5 rounded-full uppercase">{profile?.plan || "free"}</span>
+            <span
+              className="text-xs px-2.5 py-0.5 rounded-full uppercase font-semibold"
+              style={{ backgroundColor: currentPlanColor + "20", color: currentPlanColor }}
+            >
+              {currentPlan}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-[#A1A1AA]">Billing</span>
+            <Link href="/dashboard/billing" className="text-sm text-[#7C3AED] hover:text-[#8B5CF6] transition">
+              Manage billing &rarr;
+            </Link>
           </div>
         </div>
       </div>

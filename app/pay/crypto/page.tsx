@@ -27,6 +27,8 @@ export default function CryptoPaymentPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const plan = PLANS.find((p) => p.id === selectedPlan)!;
 
@@ -38,9 +40,33 @@ export default function CryptoPaymentPage() {
 
   const handleSubmit = async () => {
     if (!txHash || !email) return;
-    // In production, this would verify the tx on-chain and upgrade the account
-    // For now, store the request for manual verification
-    setSubmitted(true);
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          tx_hash: txHash,
+          plan: selectedPlan,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      setSubmitted(true);
+    } catch {
+      setError("Network error. Please try again.");
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -151,12 +177,17 @@ export default function CryptoPaymentPage() {
                   className="w-full bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-4 py-2.5 text-sm text-[#FAFAFA] font-mono focus:outline-none focus:border-[#7C3AED] placeholder-[#555]"
                 />
               </div>
+              {error && (
+                <div className="bg-[#EF4444]/10 border border-[#EF4444]/20 rounded-lg p-3">
+                  <p className="text-sm text-[#EF4444]">{error}</p>
+                </div>
+              )}
               <button
                 onClick={handleSubmit}
-                disabled={!txHash || !email}
+                disabled={!txHash || !email || submitting}
                 className="w-full bg-[#7C3AED] hover:bg-[#8B5CF6] text-white py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Submit for Verification
+                {submitting ? "Submitting..." : "Submit for Verification"}
               </button>
               <p className="text-xs text-[#A1A1AA] text-center">
                 Your account will be upgraded within 24 hours after transaction confirmation.

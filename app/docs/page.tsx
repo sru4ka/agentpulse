@@ -59,18 +59,24 @@ export default function DocsPage() {
           </h2>
           <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 space-y-4">
             <p className="text-[#A1A1AA]">
-              SSH into your server where OpenClaw is running, then install AgentPulse:
-            </p>
-            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4">
-              <code className="text-sm text-[#10B981]">pip install agentpulse</code>
-            </div>
-            <p className="text-[#A1A1AA]">
-              Or install from source if pip isn&apos;t available:
+              SSH into your server where OpenClaw is running, then run this one-liner to install AgentPulse:
             </p>
             <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4 space-y-1">
-              <code className="text-sm text-[#A1A1AA] block">git clone https://github.com/sru4ka/agentpulse.git</code>
-              <code className="text-sm text-[#A1A1AA] block">cd agentpulse/plugin</code>
-              <code className="text-sm text-[#10B981] block">pip install .</code>
+              <code className="text-sm text-[#A1A1AA] block"># Create a virtual environment and install</code>
+              <code className="text-sm text-[#10B981] block">python3 -m venv ~/.agentpulse-venv</code>
+              <code className="text-sm text-[#10B981] block">source ~/.agentpulse-venv/bin/activate</code>
+              <code className="text-sm text-[#10B981] block">pip install git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin</code>
+            </div>
+            <div className="bg-[#F59E0B]/5 border border-[#F59E0B]/20 rounded-lg p-3">
+              <p className="text-xs text-[#F59E0B]">
+                Note: On Ubuntu/Debian, Python requires a virtual environment for pip installs. The commands above handle this automatically.
+              </p>
+            </div>
+            <p className="text-[#A1A1AA]">
+              Or use the quick install script:
+            </p>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4">
+              <code className="text-sm text-[#10B981]">curl -sSL https://raw.githubusercontent.com/sru4ka/agentpulse/main/plugin/install.sh | bash</code>
             </div>
           </div>
         </section>
@@ -167,7 +173,7 @@ export default function DocsPage() {
               <code className="text-[#F59E0B] block">[Service]</code>
               <code className="text-[#FAFAFA] block">Type=simple</code>
               <code className="text-[#FAFAFA] block">User=bot</code>
-              <code className="text-[#FAFAFA] block">ExecStart=/usr/local/bin/agentpulse start</code>
+              <code className="text-[#FAFAFA] block">ExecStart=/root/.agentpulse-venv/bin/agentpulse start</code>
               <code className="text-[#FAFAFA] block">Restart=always</code>
               <code className="text-[#FAFAFA] block">RestartSec=10</code>
               <code className="text-[#FAFAFA] block">&nbsp;</code>

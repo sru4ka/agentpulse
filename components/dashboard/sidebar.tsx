@@ -2,6 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
+
+const PLAN_COLORS: Record<string, string> = {
+  free: "#A1A1AA",
+  pro: "#7C3AED",
+  team: "#F59E0B",
+  enterprise: "#10B981",
+};
 
 const navItems = [
   {
@@ -48,6 +57,17 @@ const navItems = [
     ),
   },
   {
+    label: "Billing",
+    href: "/dashboard/billing",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M2 8H18" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M6 12H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     label: "Settings",
     href: "/dashboard/settings",
     icon: (
@@ -65,25 +85,53 @@ interface SidebarProps {
 
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const [plan, setPlan] = useState<string>("free");
+
+  useEffect(() => {
+    const fetchPlan = async () => {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/stats", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPlan(data.profile?.plan || "free");
+      }
+    };
+    fetchPlan();
+  }, []);
 
   const handleSignOut = async () => {
-    const { createBrowserSupabaseClient } = await import("@/lib/supabase");
     const supabase = createBrowserSupabaseClient();
     await supabase.auth.signOut();
     window.location.href = "/";
   };
 
+  const planColor = PLAN_COLORS[plan] || PLAN_COLORS.free;
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] bg-[#0A0A0B] border-r border-[#2A2A2D] flex flex-col z-40">
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-6 py-6">
-        <div className="relative flex items-center justify-center">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="14" cy="14" r="8" fill="#7C3AED" className="animate-pulse" />
-            <circle cx="14" cy="14" r="12" stroke="#7C3AED" strokeWidth="1.5" strokeOpacity="0.4" className="animate-ping" />
-          </svg>
+      {/* Logo + Plan Badge */}
+      <div className="px-6 py-6">
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="14" cy="14" r="8" fill="#7C3AED" className="animate-pulse" />
+              <circle cx="14" cy="14" r="12" stroke="#7C3AED" strokeWidth="1.5" strokeOpacity="0.4" className="animate-ping" />
+            </svg>
+          </div>
+          <span className="text-[#FAFAFA] font-bold text-lg tracking-tight">AgentPulse</span>
         </div>
-        <span className="text-[#FAFAFA] font-bold text-lg tracking-tight">AgentPulse</span>
+        <div className="mt-3">
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider"
+            style={{ backgroundColor: planColor + "20", color: planColor }}
+          >
+            {plan} plan
+          </span>
+        </div>
       </div>
 
       {/* Navigation */}

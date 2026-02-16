@@ -400,7 +400,7 @@ PYEOF
 cat > "$PLUGIN_DIR/pyproject.toml" << 'PYEOF'
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentpulse"
