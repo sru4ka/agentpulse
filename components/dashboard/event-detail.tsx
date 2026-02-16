@@ -93,8 +93,16 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
   };
   const statusStyle = statusStyles[event.status] || statusStyles.success;
 
-  const hasPromptData = event.prompt_messages && event.prompt_messages.length > 0;
-  const hasResponseData = !!event.response_text;
+  // Read prompt data from top-level fields OR from metadata JSONB
+  const promptMessages: PromptMessage[] | null =
+    event.prompt_messages && event.prompt_messages.length > 0
+      ? event.prompt_messages
+      : event.metadata?.prompt_messages || null;
+  const responseText: string | null =
+    event.response_text || event.metadata?.response_text || null;
+
+  const hasPromptData = promptMessages && promptMessages.length > 0;
+  const hasResponseData = !!responseText;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -302,12 +310,18 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
                 </div>
               )}
 
-              {/* Metadata */}
-              {event.metadata && Object.keys(event.metadata).length > 0 && (
+              {/* Metadata (hide prompt_messages/response_text since shown in dedicated tabs) */}
+              {event.metadata && Object.keys(event.metadata).filter(k => k !== 'prompt_messages' && k !== 'response_text').length > 0 && (
                 <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-4">
                   <h3 className="text-sm font-medium text-[#FAFAFA] mb-3">Metadata</h3>
                   <pre className="text-xs text-[#A1A1AA] font-mono overflow-x-auto">
-                    {JSON.stringify(event.metadata, null, 2)}
+                    {JSON.stringify(
+                      Object.fromEntries(
+                        Object.entries(event.metadata).filter(([k]) => k !== 'prompt_messages' && k !== 'response_text')
+                      ),
+                      null,
+                      2
+                    )}
                   </pre>
                 </div>
               )}
@@ -321,11 +335,11 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium text-[#FAFAFA]">
-                      Conversation ({event.prompt_messages!.length} messages)
+                      Conversation ({promptMessages!.length} messages)
                     </h3>
                     <span className="text-xs text-[#A1A1AA]">{event.model}</span>
                   </div>
-                  {event.prompt_messages!.map((msg, i) => (
+                  {promptMessages!.map((msg, i) => (
                     <MessageBubble key={i} message={msg} />
                   ))}
                 </div>
@@ -359,7 +373,7 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
                   </div>
                   <div className="bg-[#10B981]/5 border border-[#10B981]/20 rounded-lg p-4">
                     <p className="text-sm text-[#FAFAFA] font-mono whitespace-pre-wrap break-words leading-relaxed">
-                      {event.response_text}
+                      {responseText}
                     </p>
                   </div>
                 </div>

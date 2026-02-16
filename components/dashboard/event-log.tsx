@@ -134,7 +134,7 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
                   <td className="py-3 px-3 text-[#FAFAFA] whitespace-nowrap font-medium">
                     <span className="flex items-center gap-1.5">
                       {event.model}
-                      <PromptIndicator hasPrompt={!!(event.prompt_messages && event.prompt_messages.length > 0)} />
+                      <PromptIndicator hasPrompt={!!((event.prompt_messages && event.prompt_messages.length > 0) || (event.metadata?.prompt_messages && event.metadata.prompt_messages.length > 0))} />
                     </span>
                   </td>
                   <td className="py-3 px-3 text-[#A1A1AA] text-right whitespace-nowrap">
@@ -173,7 +173,7 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-[#FAFAFA] font-medium flex items-center gap-1.5">
                   {event.model}
-                  <PromptIndicator hasPrompt={!!(event.prompt_messages && event.prompt_messages.length > 0)} />
+                  <PromptIndicator hasPrompt={!!((event.prompt_messages && event.prompt_messages.length > 0) || (event.metadata?.prompt_messages && event.metadata.prompt_messages.length > 0))} />
                 </span>
                 <StatusBadge status={event.status} />
               </div>
