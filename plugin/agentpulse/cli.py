@@ -112,6 +112,72 @@ def cmd_stop(args):
 
     os.remove(PID_FILE)
 
+def cmd_test(args):
+    """Send a test event to verify connection."""
+    import json
+    import urllib.request
+    import urllib.error
+    from datetime import datetime
+
+    config = load_config()
+    if not config.get("api_key"):
+        print("❌ No API key configured. Run 'agentpulse init' first.")
+        sys.exit(1)
+
+    print("🔍 Testing connection to AgentPulse...\n")
+    print(f"   Endpoint: {config['endpoint']}")
+    print(f"   Agent: {config['agent_name']}")
+    print(f"   API Key: {config['api_key'][:10]}...\n")
+
+    test_event = {
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "provider": "agentpulse",
+        "model": "connection-test",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0,
+        "latency_ms": 1,
+        "status": "success",
+        "error_message": None,
+        "task_context": "AgentPulse connection test",
+        "tools_used": [],
+    }
+
+    payload = {
+        "api_key": config["api_key"],
+        "agent_name": config["agent_name"],
+        "framework": config.get("framework", "openclaw"),
+        "events": [test_event],
+    }
+
+    try:
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            config["endpoint"],
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
+            if resp.status == 200 and result.get("success"):
+                print("✅ Connection successful!")
+                print(f"   Agent '{config['agent_name']}' is now visible in your dashboard.")
+                print(f"   Go to: https://agentpulses.com/dashboard/agents")
+            else:
+                print(f"❌ Unexpected response: {result}")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if e.fp else ""
+        print(f"❌ API error ({e.code}): {body}")
+        if e.code == 401:
+            print("   Your API key may be invalid. Check it at https://agentpulses.com/dashboard/settings")
+        elif e.code == 403:
+            print("   Agent limit reached on your plan. Upgrade at https://agentpulses.com/pricing")
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        print(f"   Check that the endpoint is correct: {config['endpoint']}")
+
+
 def cmd_status(args):
     """Check daemon status."""
     config = load_config()
@@ -143,6 +209,7 @@ def main():
     subparsers.add_parser("start", help="Start the daemon")
     subparsers.add_parser("stop", help="Stop the daemon")
     subparsers.add_parser("status", help="Check daemon status")
+    subparsers.add_parser("test", help="Send a test event to verify connection")
 
     args = parser.parse_args()
 
@@ -151,6 +218,7 @@ def main():
         "start": cmd_start,
         "stop": cmd_stop,
         "status": cmd_status,
+        "test": cmd_test,
     }
 
     if args.command in commands:
