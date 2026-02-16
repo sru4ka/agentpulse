@@ -18,6 +18,7 @@ export default function LandingPage() {
             <a href="#features" className="hover:text-[#FAFAFA] transition">Features</a>
             <a href="#pricing" className="hover:text-[#FAFAFA] transition">Pricing</a>
             <a href="#how-it-works" className="hover:text-[#FAFAFA] transition">How It Works</a>
+            <Link href="/docs" className="hover:text-[#FAFAFA] transition">Docs</Link>
             <Link href="/login" className="hover:text-[#FAFAFA] transition">Login</Link>
             <Link href="/signup" className="bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-4 py-2 rounded-lg transition font-medium">
               Get Started

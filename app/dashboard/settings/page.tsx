@@ -9,6 +9,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const router = useRouter();
   const supabase = createBrowserSupabaseClient();
 
@@ -33,6 +35,23 @@ export default function SettingsPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const regenerateKey = async () => {
+    setRegenerating(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const res = await fetch("/api/key/regenerate", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await res.json();
+    if (data.api_key) {
+      setProfile({ ...profile, api_key: data.api_key });
+      setShowKey(true);
+    }
+    setRegenerating(false);
+    setShowConfirm(false);
   };
 
   const handleSignOut = async () => {
@@ -73,6 +92,33 @@ export default function SettingsPage() {
           >
             {copied ? "Copied!" : "Copy"}
           </button>
+        </div>
+        <div className="mt-4 pt-4 border-t border-[#2A2A2D]">
+          {!showConfirm ? (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="text-sm text-[#EF4444] hover:text-[#F87171] transition"
+            >
+              Regenerate API Key
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-[#F59E0B]">This will invalidate your current key. Any connected plugins will stop working until reconfigured.</p>
+              <button
+                onClick={regenerateKey}
+                disabled={regenerating}
+                className="text-sm bg-[#EF4444] hover:bg-[#DC2626] text-white px-4 py-2 rounded-lg font-medium transition whitespace-nowrap disabled:opacity-50"
+              >
+                {regenerating ? "Regenerating..." : "Yes, Regenerate"}
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="text-sm text-[#A1A1AA] hover:text-[#FAFAFA] transition whitespace-nowrap"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
