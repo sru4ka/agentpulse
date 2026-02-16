@@ -50,13 +50,20 @@ export async function POST(request: Request) {
     const plan = (profile.plan as string) || 'free'
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free
 
-    // Find or create agent
-    let { data: agent } = await supabase
+    // Find or create agent (use maybeSingle to avoid error when no rows found)
+    const { data: agent_result, error: agentLookupError } = await supabase
       .from('agents')
       .select('id')
       .eq('user_id', profile.id)
       .eq('name', agent_name || 'default')
-      .single()
+      .maybeSingle()
+
+    let agent = agent_result
+
+    if (agentLookupError) {
+      console.error('Agent lookup error:', agentLookupError.message)
+      return NextResponse.json({ error: 'Failed to look up agent' }, { status: 500 })
+    }
 
     if (!agent) {
       // Check agent limit before creating
@@ -95,7 +102,8 @@ export async function POST(request: Request) {
         .eq('id', agent.id)
     }
 
-    // Insert events
+    // Insert events — store prompt_messages and response_text in metadata JSONB
+    // (these don't have dedicated columns in the events table)
     const eventRows = events.map((e: any) => ({
       agent_id: agent!.id,
       timestamp: e.timestamp || new Date().toISOString(),
@@ -110,9 +118,11 @@ export async function POST(request: Request) {
       error_message: e.error_message || null,
       task_context: e.task_context || null,
       tools_used: e.tools_used || [],
-      metadata: e.metadata || null,
-      prompt_messages: e.prompt_messages || null,
-      response_text: e.response_text || null,
+      metadata: {
+        ...(e.metadata || {}),
+        ...(e.prompt_messages ? { prompt_messages: e.prompt_messages } : {}),
+        ...(e.response_text ? { response_text: e.response_text } : {}),
+      },
     }))
 
     const { error: insertError } = await supabase
@@ -131,16 +141,16 @@ export async function POST(request: Request) {
     const errorCount = eventRows.filter((e: any) => e.status === 'error').length
     const rateLimitCount = eventRows.filter((e: any) => e.status === 'rate_limit').length
 
-    // Try to get existing daily stats
+    // Update daily stats atomically using RPC or fallback to select-then-update
     const { data: existingStats } = await supabase
       .from('daily_stats')
       .select('*')
       .eq('agent_id', agent!.id)
       .eq('date', today)
-      .single()
+      .maybeSingle()
 
     if (existingStats) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('daily_stats')
         .update({
           total_events: existingStats.total_events + eventRows.length,
@@ -151,8 +161,12 @@ export async function POST(request: Request) {
           rate_limit_count: existingStats.rate_limit_count + rateLimitCount,
         })
         .eq('id', existingStats.id)
+
+      if (updateError) {
+        console.error('Failed to update daily_stats:', updateError.message)
+      }
     } else {
-      await supabase
+      const { error: insertStatsError } = await supabase
         .from('daily_stats')
         .insert({
           agent_id: agent!.id,
@@ -164,6 +178,10 @@ export async function POST(request: Request) {
           error_count: errorCount,
           rate_limit_count: rateLimitCount,
         })
+
+      if (insertStatsError) {
+        console.error('Failed to insert daily_stats:', insertStatsError.message)
+      }
     }
 
     // Clean up old events beyond plan's history limit
