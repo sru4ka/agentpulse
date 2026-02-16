@@ -72,6 +72,149 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Dashboard Preview */}
+      <section className="px-6 py-24">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-bold text-[#FAFAFA] text-center mb-4">Your Command Center</h2>
+          <p className="text-[#A1A1AA] text-center mb-12 max-w-xl mx-auto">See every LLM call, every dollar spent, every error — all in one dashboard.</p>
+
+          {/* Dashboard Mockup */}
+          <div className="bg-[#0E0E10] border border-[#2A2A2D] rounded-2xl overflow-hidden shadow-2xl shadow-[#7C3AED]/5">
+            {/* Title bar */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2A2A2D] bg-[#0A0A0B]">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#EF4444]/60" />
+                <div className="w-3 h-3 rounded-full bg-[#F59E0B]/60" />
+                <div className="w-3 h-3 rounded-full bg-[#10B981]/60" />
+              </div>
+              <span className="text-xs text-[#A1A1AA] ml-2 font-mono">agentpulses.com/dashboard</span>
+            </div>
+
+            <div className="flex">
+              {/* Mini sidebar */}
+              <div className="w-48 border-r border-[#2A2A2D] bg-[#0A0A0B] py-4 px-3 hidden md:block">
+                <div className="flex items-center gap-2 px-3 mb-6">
+                  <div className="w-5 h-5 bg-[#7C3AED] rounded-md" />
+                  <span className="text-xs text-[#FAFAFA] font-bold">AgentPulse</span>
+                </div>
+                <div className="space-y-1">
+                  <div className="bg-[#7C3AED]/15 text-[#7C3AED] text-xs px-3 py-2 rounded-md font-medium">Dashboard</div>
+                  <div className="text-[#A1A1AA] text-xs px-3 py-2">Agents</div>
+                  <div className="text-[#A1A1AA] text-xs px-3 py-2">Costs</div>
+                  <div className="text-[#A1A1AA] text-xs px-3 py-2">Alerts</div>
+                  <div className="text-[#A1A1AA] text-xs px-3 py-2">Billing</div>
+                  <div className="text-[#A1A1AA] text-xs px-3 py-2">Settings</div>
+                </div>
+              </div>
+
+              {/* Dashboard content */}
+              <div className="flex-1 p-5 space-y-5">
+                {/* Stat cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-3">
+                    <div className="text-[10px] text-[#A1A1AA] uppercase tracking-wider">Today&apos;s Cost</div>
+                    <div className="text-lg font-bold text-[#FAFAFA] mt-1">$4.82</div>
+                    <div className="text-[10px] text-[#10B981] mt-0.5">-12% vs yesterday</div>
+                  </div>
+                  <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-3">
+                    <div className="text-[10px] text-[#A1A1AA] uppercase tracking-wider">Total Tokens</div>
+                    <div className="text-lg font-bold text-[#FAFAFA] mt-1">847K</div>
+                    <div className="text-[10px] text-[#A1A1AA] mt-0.5">124 API calls</div>
+                  </div>
+                  <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-3">
+                    <div className="text-[10px] text-[#A1A1AA] uppercase tracking-wider">API Calls</div>
+                    <div className="text-lg font-bold text-[#FAFAFA] mt-1">124</div>
+                    <div className="text-[10px] text-[#A1A1AA] mt-0.5">3 models used</div>
+                  </div>
+                  <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-3">
+                    <div className="text-[10px] text-[#A1A1AA] uppercase tracking-wider">Error Rate</div>
+                    <div className="text-lg font-bold text-[#10B981] mt-1">0.8%</div>
+                    <div className="text-[10px] text-[#10B981] mt-0.5">1 error today</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Cost chart mockup */}
+                  <div className="md:col-span-2 bg-[#141415] border border-[#2A2A2D] rounded-lg p-4">
+                    <div className="text-xs text-[#A1A1AA] mb-3 font-medium">Cost Over Time (30 days)</div>
+                    <div className="h-32 flex items-end gap-[3px]">
+                      {[28, 35, 22, 40, 32, 45, 38, 50, 42, 55, 48, 60, 52, 65, 58, 45, 62, 70, 55, 72, 65, 75, 68, 80, 72, 85, 78, 62, 70, 55].map((h, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 rounded-t transition-all"
+                          style={{
+                            height: `${h}%`,
+                            backgroundColor: i === 29 ? '#7C3AED' : i > 26 ? '#7C3AED80' : '#7C3AED40',
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex justify-between mt-2 text-[9px] text-[#A1A1AA]">
+                      <span>Jan 17</span>
+                      <span>Jan 24</span>
+                      <span>Jan 31</span>
+                      <span>Feb 7</span>
+                      <span>Feb 16</span>
+                    </div>
+                  </div>
+
+                  {/* Status donut mockup */}
+                  <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-4">
+                    <div className="text-xs text-[#A1A1AA] mb-3 font-medium">Status Breakdown</div>
+                    <div className="flex justify-center">
+                      <svg width="100" height="100" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#2A2A2D" strokeWidth="12" />
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#10B981" strokeWidth="12"
+                          strokeDasharray="228.3" strokeDashoffset="11.4" transform="rotate(-90 50 50)" />
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#EF4444" strokeWidth="12"
+                          strokeDasharray="228.3" strokeDashoffset="222" transform="rotate(-90 50 50)" />
+                        <text x="50" y="48" textAnchor="middle" className="text-xl font-bold" fill="#FAFAFA" fontSize="16">95%</text>
+                        <text x="50" y="62" textAnchor="middle" fill="#A1A1AA" fontSize="8">success</text>
+                      </svg>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-2 text-[10px]">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10B981]" />Success</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#EF4444]" />Error</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Event log mockup */}
+                <div className="bg-[#141415] border border-[#2A2A2D] rounded-lg p-4">
+                  <div className="text-xs text-[#A1A1AA] mb-3 font-medium">Recent Events</div>
+                  <div className="space-y-0">
+                    <div className="grid grid-cols-6 text-[9px] text-[#A1A1AA] uppercase tracking-wider px-2 pb-2 border-b border-[#2A2A2D]/50">
+                      <span>Time</span><span>Model</span><span>Tokens</span><span>Cost</span><span>Latency</span><span>Status</span>
+                    </div>
+                    {[
+                      { time: "14:32:01", model: "Claude Sonnet 4.5", tokens: "12.5K", cost: "$0.048", latency: "2.1s", status: "success" },
+                      { time: "14:31:45", model: "MiniMax-M2.5", tokens: "8.2K", cost: "$0.123", latency: "3.4s", status: "success" },
+                      { time: "14:31:12", model: "GPT-4o", tokens: "6.8K", cost: "$0.034", latency: "1.8s", status: "success" },
+                      { time: "14:30:58", model: "Claude Sonnet 4.5", tokens: "15.1K", cost: "$0.058", latency: "2.9s", status: "success" },
+                      { time: "14:30:22", model: "MiniMax-M2.5", tokens: "0", cost: "$0.000", latency: "-", status: "rate_limit" },
+                    ].map((row, i) => (
+                      <div key={i} className="grid grid-cols-6 text-[10px] px-2 py-1.5 border-b border-[#2A2A2D]/30 last:border-0">
+                        <span className="text-[#A1A1AA] font-mono">{row.time}</span>
+                        <span className="text-[#FAFAFA]">{row.model}</span>
+                        <span className="text-[#A1A1AA]">{row.tokens}</span>
+                        <span className="text-[#FAFAFA]">{row.cost}</span>
+                        <span className="text-[#A1A1AA]">{row.latency}</span>
+                        <span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
+                            row.status === "success" ? "bg-[#10B981]/10 text-[#10B981]" :
+                            "bg-[#F59E0B]/10 text-[#F59E0B]"
+                          }`}>{row.status}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
       <section id="how-it-works" className="px-6 py-24">
         <div className="max-w-5xl mx-auto">
