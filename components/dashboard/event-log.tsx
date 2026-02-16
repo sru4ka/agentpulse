@@ -201,9 +201,14 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
         </div>
 
         {events.length > 0 && (
-          <p className="text-xs text-[#A1A1AA] mt-3">
-            Click any event to see full details, cost breakdown, and prompt replay
-          </p>
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[#2A2A2D]/30">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="text-[#7C3AED] flex-shrink-0">
+              <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <p className="text-xs text-[#A1A1AA]">
+              Click any row to deep dive into cost breakdown, prompt replay & response
+            </p>
+          </div>
         )}
       </div>
 
