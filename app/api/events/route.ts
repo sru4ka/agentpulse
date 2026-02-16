@@ -28,16 +28,27 @@ export async function POST(request: Request) {
 
     const supabase = createServerSupabaseClient()
 
+    // Plan limits: max agents and history retention (days)
+    const PLAN_LIMITS: Record<string, { maxAgents: number; historyDays: number }> = {
+      free: { maxAgents: 1, historyDays: 7 },
+      pro: { maxAgents: 5, historyDays: 90 },
+      team: { maxAgents: 25, historyDays: 365 },
+      enterprise: { maxAgents: 999, historyDays: 99999 },
+    }
+
     // Look up user by API key
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, plan')
       .eq('api_key', api_key)
       .single()
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
     }
+
+    const plan = (profile.plan as string) || 'free'
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free
 
     // Find or create agent
     let { data: agent } = await supabase
@@ -48,6 +59,19 @@ export async function POST(request: Request) {
       .single()
 
     if (!agent) {
+      // Check agent limit before creating
+      const { count: agentCount } = await supabase
+        .from('agents')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+
+      if ((agentCount || 0) >= limits.maxAgents) {
+        return NextResponse.json(
+          { error: `Agent limit reached (${limits.maxAgents} on ${plan} plan). Upgrade at https://agentpulses.com/pricing` },
+          { status: 403 }
+        )
+      }
+
       const { data: newAgent, error: agentError } = await supabase
         .from('agents')
         .insert({
@@ -138,6 +162,17 @@ export async function POST(request: Request) {
           error_count: errorCount,
           rate_limit_count: rateLimitCount,
         })
+    }
+
+    // Clean up old events beyond plan's history limit
+    if (limits.historyDays < 99999) {
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - limits.historyDays)
+      await supabase
+        .from('events')
+        .delete()
+        .eq('agent_id', agent!.id)
+        .lt('timestamp', cutoff.toISOString())
     }
 
     return NextResponse.json({ success: true, events_received: eventRows.length })

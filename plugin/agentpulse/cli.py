@@ -15,9 +15,25 @@ def cmd_init(args):
 
     config = load_config()
 
-    api_key = input(f"API Key [{config.get('api_key', '')}]: ").strip()
+    # If no API key yet, guide user to sign up
+    existing_key = config.get("api_key", "")
+    if not existing_key:
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("  Welcome to AgentPulse!")
+        print("  You need an API key to get started.")
+        print("")
+        print("  1. Sign up at: https://agentpulses.com/signup")
+        print("  2. Go to Dashboard → Settings")
+        print("  3. Copy your API key")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("")
+
+    api_key = input(f"API Key [{existing_key}]: ").strip()
     if api_key:
         config["api_key"] = api_key
+    elif not existing_key:
+        print("\n❌ API key is required. Sign up at https://agentpulses.com/signup")
+        sys.exit(1)
 
     agent_name = input(f"Agent name [{config.get('agent_name', 'default')}]: ").strip()
     if agent_name:
@@ -41,7 +57,9 @@ def cmd_start(args):
     """Start the daemon."""
     config = load_config()
     if not config.get("api_key"):
-        print("❌ No API key configured. Run 'agentpulse init' first.")
+        print("❌ No API key configured.")
+        print("   Run 'agentpulse init' to set up your API key.")
+        print("   Don't have an account? Sign up at https://agentpulses.com/signup")
         sys.exit(1)
 
     # Check if already running
