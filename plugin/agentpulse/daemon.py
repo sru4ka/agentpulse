@@ -41,10 +41,9 @@ class AgentPulseDaemon:
     def tail_file(self, filepath: str) -> list[str]:
         """Read new lines from file since last position."""
         if filepath not in self.file_positions:
-            # Start from end of file on first read (don't replay history)
-            size = os.path.getsize(filepath)
-            self.file_positions[filepath] = size
-            return []
+            # Start from beginning of file so we capture existing events
+            self.file_positions[filepath] = 0
+            logger.info(f"New file discovered, reading from start: {filepath}")
 
         try:
             with open(filepath, "r") as f:

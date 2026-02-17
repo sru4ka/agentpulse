@@ -59,8 +59,16 @@ export default function DashboardPage() {
     { name: "Rate Limited", value: totalRateLimits, color: "#F59E0B" },
   ].filter(d => d.value > 0);
 
-  const errorRate = stats?.today?.events > 0
-    ? ((stats.today.errors / stats.today.events) * 100).toFixed(1) + "%"
+  // Show all-time stats when today has no data, so the user always sees their numbers
+  const hasToday = (stats?.today?.events || 0) > 0;
+  const displayCost = hasToday ? stats.today.cost : (stats?.total?.cost || 0);
+  const displayTokens = hasToday ? stats.today.tokens : (stats?.total?.tokens || 0);
+  const displayEvents = hasToday ? stats.today.events : (stats?.total?.events || 0);
+  const displayErrors = hasToday ? stats.today.errors : (stats?.total?.errors || 0);
+  const periodLabel = hasToday ? "today" : "all time";
+
+  const errorRate = displayEvents > 0
+    ? ((displayErrors / displayEvents) * 100).toFixed(1) + "%"
     : "0%";
 
   return (
@@ -72,10 +80,10 @@ export default function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Today's Cost" value={formatCost(stats?.today?.cost || 0)} subtitle="USD spent today" />
-        <StatCard title="Total Tokens" value={formatNumber(stats?.today?.tokens || 0)} subtitle="tokens used today" />
-        <StatCard title="API Calls" value={formatNumber(stats?.today?.events || 0)} subtitle="calls today" />
-        <StatCard title="Error Rate" value={errorRate} subtitle="of calls failed" />
+        <StatCard title={hasToday ? "Today's Cost" : "Total Cost"} value={formatCost(displayCost)} subtitle={`USD spent ${periodLabel}`} />
+        <StatCard title="Total Tokens" value={formatNumber(displayTokens)} subtitle={`tokens used ${periodLabel}`} />
+        <StatCard title="API Calls" value={formatNumber(displayEvents)} subtitle={`calls ${periodLabel}`} />
+        <StatCard title="Error Rate" value={errorRate} subtitle={`of calls failed ${periodLabel}`} />
       </div>
 
       {/* Cost chart */}
@@ -100,7 +108,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-[#FAFAFA] mb-4">Active Agents</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stats.agents.map((agent: any) => (
-              <AgentCard key={agent.id} agent={agent} todayCost={0} />
+              <AgentCard key={agent.id} agent={agent} todayCost={stats?.agent_today_costs?.[agent.id] || 0} />
             ))}
           </div>
         </div>
