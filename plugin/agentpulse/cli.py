@@ -43,24 +43,17 @@ def cmd_init(args):
     if agent_name:
         config["agent_name"] = agent_name
 
-    endpoint = input(f"API endpoint [{config.get('endpoint', DEFAULT_CONFIG['endpoint'])}]: ").strip()
-    if endpoint:
-        config["endpoint"] = endpoint
-
-    detected_path = config.get("log_path", detect_openclaw_log_path())
-    log_path = input(f"OpenClaw log path [{detected_path}]: ").strip()
-    if log_path:
-        config["log_path"] = log_path
-    elif not config.get("log_path"):
+    # Auto-detect log path, only ask if detection fails
+    detected_path = detect_openclaw_log_path()
+    if not config.get("log_path"):
         config["log_path"] = detected_path
 
     save_config(config)
     print(f"\n✅ Config saved to {DEFAULT_CONFIG_PATH}")
     print(f"   Agent: {config['agent_name']}")
-    print(f"   Endpoint: {config['endpoint']}")
+    print(f"   Log path: {config['log_path']}")
     print(f"\nStart monitoring with:")
     print(f"   agentpulse start -d")
-    print(f"\nAll LLM calls will be tracked automatically in the background.")
 
 def cmd_run(args):
     """Run a command with automatic LLM instrumentation.
