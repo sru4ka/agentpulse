@@ -39,6 +39,8 @@ DEFAULT_CONFIG = {
     "log_path": "",  # auto-detected at load time
     "poll_interval": 5,
     "batch_interval": 30,
+    "proxy_enabled": False,
+    "proxy_port": 8787,
 }
 
 def load_config(path: str = DEFAULT_CONFIG_PATH) -> dict:
