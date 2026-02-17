@@ -222,9 +222,30 @@ export default function SettingsPage() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">1</div>
             <div className="flex-1">
               <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Install the plugin</p>
-              <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                pip install agentpulse
-              </code>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-[#A1A1AA] mb-1">One-liner (installs pipx if needed, then installs AgentPulse):</p>
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap break-all">
+                    sudo apt install -y pipx &amp;&amp; pipx install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot; &amp;&amp; pipx ensurepath &amp;&amp; source ~/.bashrc
+                  </code>
+                </div>
+                <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded-lg p-2.5">
+                  <p className="text-xs text-[#F59E0B]">
+                    Do <strong>not</strong> use <span className="font-mono">pip install agentpulse</span> or <span className="font-mono">pipx install agentpulse</span> &mdash; that installs an unrelated package from PyPI. Always install from the git URL shown above.
+                  </p>
+                </div>
+                <details className="group">
+                  <summary className="text-xs text-[#A1A1AA] cursor-pointer hover:text-[#FAFAFA] transition">
+                    Alternative: manual venv (if pipx is unavailable)
+                  </summary>
+                  <div className="mt-2">
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap break-all">
+                      python3 -m venv ~/.agentpulse-venv &amp;&amp; ~/.agentpulse-venv/bin/pip install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot; &amp;&amp; mkdir -p ~/.local/bin &amp;&amp; ln -sf ~/.agentpulse-venv/bin/agentpulse ~/.local/bin/agentpulse
+                    </code>
+                    <p className="text-xs text-[#A1A1AA] mt-1">Creates a symlink so <span className="text-[#FAFAFA]">agentpulse</span> works from anywhere.</p>
+                  </div>
+                </details>
+              </div>
             </div>
           </div>
 
@@ -261,6 +282,22 @@ export default function SettingsPage() {
         <div className="mt-6 pt-5 border-t border-[#2A2A2D]">
           <h4 className="text-sm font-semibold text-[#FAFAFA] mb-3">Troubleshooting</h4>
           <div className="space-y-3">
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found</p>
+              <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+                <li>After installing via pipx, run <span className="text-[#7C3AED] font-mono">pipx ensurepath</span> then <span className="text-[#7C3AED] font-mono">source ~/.bashrc</span> (or open a new terminal)</li>
+                <li>On Debian/Ubuntu, bare <span className="text-[#FAFAFA]">pip install</span> is blocked (PEP 668) &mdash; use the pipx one-liner from Step 1 above</li>
+                <li>If using a manual venv, ensure you symlinked: <span className="text-[#7C3AED] font-mono">ln -sf ~/.agentpulse-venv/bin/agentpulse ~/.local/bin/agentpulse</span></li>
+              </ul>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">&ldquo;No apps associated with package&rdquo; / wrong package installed</p>
+              <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+                <li>There is an <em>unrelated</em> package called &ldquo;agentpulse&rdquo; on PyPI &mdash; that is <strong>not</strong> this tool</li>
+                <li>If you ran <span className="text-[#7C3AED] font-mono">pipx install agentpulse</span> (without git URL), uninstall it: <span className="text-[#7C3AED] font-mono">pipx uninstall agentpulse</span></li>
+                <li>Then re-install using the git URL from Step 1 above</li>
+              </ul>
+            </div>
             <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
               <p className="text-sm text-[#FAFAFA] font-medium mb-1">Dashboard shows 0 events</p>
               <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
