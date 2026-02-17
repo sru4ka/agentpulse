@@ -341,8 +341,64 @@ def cmd_status(args):
     print(f"   Daemon log: {LOG_FILE}")
     print(f"   LLM Proxy: {'enabled (port {})'.format(proxy_port) if proxy_enabled else 'disabled'}")
     if proxy_enabled:
-        print(f"\n🔌 Proxy active — run this in your shell (or add to ~/.bashrc):")
-        print(f"   export ANTHROPIC_BASE_URL=http://127.0.0.1:{proxy_port}/anthropic")
+        print(f"\n🔌 Proxy active — ANTHROPIC_BASE_URL is configured in {_get_bashrc_path()}")
+
+PROXY_MARKER = "# agentpulse-proxy"
+
+
+def _get_bashrc_path():
+    """Return the shell rc file to modify."""
+    home = os.path.expanduser("~")
+    # Prefer .bashrc if it exists, otherwise .profile
+    bashrc = os.path.join(home, ".bashrc")
+    if os.path.exists(bashrc):
+        return bashrc
+    return os.path.join(home, ".profile")
+
+
+def _install_proxy_env(port: int):
+    """Add ANTHROPIC_BASE_URL export to the user's shell rc file."""
+    rc_path = _get_bashrc_path()
+    export_line = f'export ANTHROPIC_BASE_URL=http://127.0.0.1:{port}/anthropic  {PROXY_MARKER}'
+
+    # Read existing content and check if already present
+    existing = ""
+    if os.path.exists(rc_path):
+        with open(rc_path, "r") as f:
+            existing = f.read()
+
+    # Remove any old agentpulse-proxy lines (handles port changes)
+    lines = [l for l in existing.splitlines() if PROXY_MARKER not in l]
+    lines.append(export_line)
+
+    with open(rc_path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    # Also set it in the current process so child processes pick it up
+    os.environ["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{port}/anthropic"
+
+    return rc_path
+
+
+def _uninstall_proxy_env():
+    """Remove ANTHROPIC_BASE_URL export from the user's shell rc file."""
+    rc_path = _get_bashrc_path()
+    if not os.path.exists(rc_path):
+        return rc_path
+
+    with open(rc_path, "r") as f:
+        existing = f.read()
+
+    lines = [l for l in existing.splitlines() if PROXY_MARKER not in l]
+
+    with open(rc_path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    # Clean up current process env too
+    os.environ.pop("ANTHROPIC_BASE_URL", None)
+
+    return rc_path
+
 
 def cmd_enable_proxy(args):
     """Enable or disable the LLM proxy for prompt capture."""
@@ -351,7 +407,9 @@ def cmd_enable_proxy(args):
     if args.disable:
         config["proxy_enabled"] = False
         save_config(config)
+        rc_path = _uninstall_proxy_env()
         print("🔌 LLM proxy disabled.")
+        print(f"   Removed ANTHROPIC_BASE_URL from {rc_path}")
         print("   Restart agentpulse to apply: agentpulse stop && agentpulse start -d")
         return
 
@@ -360,13 +418,12 @@ def cmd_enable_proxy(args):
     config["proxy_port"] = port
     save_config(config)
 
+    rc_path = _install_proxy_env(port)
+
     print(f"🔌 LLM proxy enabled on port {port}")
-    print(f"\n   To capture prompts, set the base URL for your provider:")
-    print(f"   export ANTHROPIC_BASE_URL=http://127.0.0.1:{port}/anthropic")
-    print(f"\n   Add that line to your ~/.bashrc or ~/.profile to make it permanent.")
-    print(f"   Then restart: agentpulse stop && agentpulse start -d")
-    print(f"\n   Other providers (only if you use them):")
-    print(f"   export OPENAI_BASE_URL=http://127.0.0.1:{port}/openai")
+    print(f"   ANTHROPIC_BASE_URL added to {rc_path}")
+    print(f"\n   Restart agentpulse and open a new shell to activate:")
+    print(f"   agentpulse stop && agentpulse start -d")
 
 
 def main():
