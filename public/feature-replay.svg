@@ -1,0 +1,30 @@
+<svg width="400" height="200" viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="200" rx="8" fill="#0A0A0B"/>
+  <!-- System prompt bubble -->
+  <rect x="12" y="10" width="260" height="38" rx="8" fill="#10B981" opacity="0.08"/>
+  <rect x="12" y="10" width="3" height="38" rx="1" fill="#10B981" opacity="0.5"/>
+  <text x="24" y="24" fill="#10B981" font-family="monospace" font-size="8" font-weight="bold">SYSTEM</text>
+  <text x="24" y="38" fill="#71717A" font-family="monospace" font-size="8.5">You are a helpful coding assistant...</text>
+  <!-- User message -->
+  <rect x="80" y="56" width="308" height="32" rx="8" fill="#3B82F6" opacity="0.08"/>
+  <rect x="385" y="56" width="3" height="32" rx="1" fill="#3B82F6" opacity="0.5"/>
+  <text x="92" y="69" fill="#3B82F6" font-family="monospace" font-size="8" font-weight="bold">USER</text>
+  <text x="92" y="80" fill="#A1A1AA" font-family="monospace" font-size="8.5">Fix the login bug in auth.ts</text>
+  <!-- Tool call -->
+  <rect x="12" y="96" width="300" height="38" rx="8" fill="#F59E0B" opacity="0.06"/>
+  <rect x="12" y="96" width="3" height="38" rx="1" fill="#F59E0B" opacity="0.4"/>
+  <text x="24" y="110" fill="#F59E0B" font-family="monospace" font-size="8" font-weight="bold">TOOL CALL</text>
+  <text x="85" y="110" fill="#52525B" font-family="monospace" font-size="8">read_file("src/auth.ts")</text>
+  <text x="24" y="124" fill="#52525B" font-family="monospace" font-size="8">→ 142 lines · 3.2KB · 847 tokens</text>
+  <!-- Assistant response -->
+  <rect x="12" y="142" width="376" height="46" rx="8" fill="#10B981" opacity="0.06"/>
+  <rect x="12" y="142" width="3" height="46" rx="1" fill="#10B981" opacity="0.5"/>
+  <text x="24" y="156" fill="#10B981" font-family="monospace" font-size="8" font-weight="bold">ASSISTANT</text>
+  <text x="80" y="156" fill="#52525B" font-family="monospace" font-size="8">648 tokens · $0.019</text>
+  <text x="24" y="169" fill="#A1A1AA" font-family="monospace" font-size="8.5">Found the bug: the session token was</text>
+  <text x="24" y="180" fill="#A1A1AA" font-family="monospace" font-size="8.5">not being refreshed after expiry...</text>
+  <!-- Metadata bar -->
+  <rect x="12" y="10" width="0" height="0"/>
+  <text x="290" y="24" fill="#52525B" font-family="monospace" font-size="7">Total: 1,842 tokens</text>
+  <text x="290" y="34" fill="#52525B" font-family="monospace" font-size="7">Cost: $0.034</text>
+</svg>

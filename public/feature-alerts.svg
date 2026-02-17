@@ -1,0 +1,41 @@
+<svg width="400" height="200" viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="200" rx="8" fill="#0A0A0B"/>
+  <!-- Alert 1 - Cost spike (active/ringing) -->
+  <rect x="12" y="10" width="376" height="52" rx="8" fill="#F59E0B" opacity="0.06"/>
+  <rect x="12" y="10" width="3" height="52" rx="1" fill="#F59E0B"/>
+  <!-- Bell icon -->
+  <circle cx="32" cy="36" r="10" fill="#F59E0B" opacity="0.12"/>
+  <text x="28" y="40" fill="#F59E0B" font-family="sans-serif" font-size="12">🔔</text>
+  <text x="50" y="28" fill="#FAFAFA" font-family="sans-serif" font-size="10" font-weight="600">Cost Spike Detected</text>
+  <text x="50" y="40" fill="#A1A1AA" font-family="sans-serif" font-size="8">Spending exceeded $50/hr threshold</text>
+  <text x="50" y="52" fill="#52525B" font-family="monospace" font-size="7.5">Triggered 2 min ago · gpt-4o · project: chatbot-v2</text>
+  <!-- Status badge -->
+  <rect x="330" y="22" width="48" height="18" rx="9" fill="#F59E0B" opacity="0.15"/>
+  <circle cx="340" cy="31" r="3" fill="#F59E0B">
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <text x="348" y="34" fill="#F59E0B" font-family="sans-serif" font-size="8" font-weight="600">FIRING</text>
+  <!-- Alert 2 - Error rate -->
+  <rect x="12" y="70" width="376" height="52" rx="8" fill="#EF4444" opacity="0.04"/>
+  <rect x="12" y="70" width="3" height="52" rx="1" fill="#EF4444" opacity="0.6"/>
+  <circle cx="32" cy="96" r="10" fill="#EF4444" opacity="0.1"/>
+  <text x="28" y="100" fill="#EF4444" font-family="sans-serif" font-size="12">🔴</text>
+  <text x="50" y="88" fill="#FAFAFA" font-family="sans-serif" font-size="10" font-weight="600">Error Rate &gt; 5%</text>
+  <text x="50" y="100" fill="#A1A1AA" font-family="sans-serif" font-size="8">12.3% of requests failing (429, 500)</text>
+  <text x="50" y="112" fill="#52525B" font-family="monospace" font-size="7.5">Triggered 18 min ago · anthropic API · project: support-agent</text>
+  <rect x="330" y="82" width="48" height="18" rx="9" fill="#EF4444" opacity="0.12"/>
+  <circle cx="340" cy="91" r="3" fill="#EF4444">
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <text x="348" y="94" fill="#EF4444" font-family="sans-serif" font-size="8" font-weight="600">FIRING</text>
+  <!-- Alert 3 - Resolved -->
+  <rect x="12" y="130" width="376" height="52" rx="8" fill="#10B981" opacity="0.04"/>
+  <rect x="12" y="130" width="3" height="52" rx="1" fill="#10B981" opacity="0.4"/>
+  <circle cx="32" cy="156" r="10" fill="#10B981" opacity="0.1"/>
+  <text x="28" y="160" fill="#10B981" font-family="sans-serif" font-size="12">✓</text>
+  <text x="50" y="148" fill="#FAFAFA" font-family="sans-serif" font-size="10" font-weight="600">Latency P95 &gt; 10s</text>
+  <text x="50" y="160" fill="#A1A1AA" font-family="sans-serif" font-size="8">P95 back to 2.1s (was 14.8s)</text>
+  <text x="50" y="172" fill="#52525B" font-family="monospace" font-size="7.5">Resolved 1 hr ago · lasted 23 min · project: data-pipeline</text>
+  <rect x="318" y="142" width="58" height="18" rx="9" fill="#10B981" opacity="0.12"/>
+  <text x="327" y="154" fill="#10B981" font-family="sans-serif" font-size="8" font-weight="600">RESOLVED</text>
+</svg>
