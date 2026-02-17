@@ -10,8 +10,8 @@ Usage:
   Example for Anthropic:
     ANTHROPIC_BASE_URL=http://127.0.0.1:8787/anthropic
 
-  Example for MiniMax (OpenAI-compatible):
-    OPENAI_BASE_URL=http://127.0.0.1:8787/minimax
+  Example for OpenAI:
+    OPENAI_BASE_URL=http://127.0.0.1:8787/openai
 """
 
 import http.client
@@ -378,7 +378,7 @@ class LLMProxyServer:
             f"  ANTHROPIC_BASE_URL=http://127.0.0.1:{self.port}/anthropic"
         )
         logger.info(
-            f"  OPENAI_BASE_URL=http://127.0.0.1:{self.port}/minimax"
+            f"  OPENAI_BASE_URL=http://127.0.0.1:{self.port}/openai"
         )
 
     def stop(self):
