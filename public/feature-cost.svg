@@ -1,0 +1,47 @@
+<svg width="400" height="200" viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="200" rx="8" fill="#0A0A0B"/>
+  <!-- Grid lines -->
+  <line x1="40" y1="30" x2="40" y2="170" stroke="#1A1A1D" strokeWidth="1"/>
+  <line x1="40" y1="170" x2="380" y2="170" stroke="#1A1A1D" strokeWidth="1"/>
+  <line x1="40" y1="135" x2="380" y2="135" stroke="#1A1A1D" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="40" y1="100" x2="380" y2="100" stroke="#1A1A1D" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <line x1="40" y1="65" x2="380" y2="65" stroke="#1A1A1D" strokeWidth="0.5" strokeDasharray="4 4"/>
+  <!-- Y axis labels -->
+  <text x="12" y="172" fill="#52525B" font-family="monospace" font-size="9">$0</text>
+  <text x="8" y="137" fill="#52525B" font-family="monospace" font-size="9">$25</text>
+  <text x="8" y="102" fill="#52525B" font-family="monospace" font-size="9">$50</text>
+  <text x="8" y="67" fill="#52525B" font-family="monospace" font-size="9">$75</text>
+  <!-- Bar chart -->
+  <rect x="55" y="130" width="20" height="40" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="55" y="140" width="20" height="30" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="90" y="110" width="20" height="60" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="90" y="125" width="20" height="45" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="125" y="95" width="20" height="75" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="125" y="115" width="20" height="55" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="160" y="85" width="20" height="85" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="160" y="105" width="20" height="65" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="195" y="75" width="20" height="95" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="195" y="100" width="20" height="70" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="230" y="65" width="20" height="105" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="230" y="90" width="20" height="80" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <rect x="265" y="55" width="20" height="115" rx="3" fill="#7C3AED" opacity="0.3"/>
+  <rect x="265" y="80" width="20" height="90" rx="3" fill="#7C3AED" opacity="0.7"/>
+  <!-- Trend line -->
+  <polyline points="65,125 100,108 135,92 170,82 205,72 240,62 275,52" stroke="#A78BFA" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+  <circle cx="275" cy="52" r="3" fill="#A78BFA"/>
+  <!-- Stats panel -->
+  <rect x="305" y="40" width="70" height="30" rx="6" fill="#7C3AED" opacity="0.12"/>
+  <text x="316" y="52" fill="#A1A1AA" font-family="sans-serif" font-size="8">Today</text>
+  <text x="316" y="64" fill="#A78BFA" font-family="monospace" font-size="11" font-weight="bold">$12.48</text>
+  <rect x="305" y="80" width="70" height="30" rx="6" fill="#7C3AED" opacity="0.12"/>
+  <text x="316" y="92" fill="#A1A1AA" font-family="sans-serif" font-size="8">This week</text>
+  <text x="316" y="104" fill="#A78BFA" font-family="monospace" font-size="11" font-weight="bold">$73.21</text>
+  <rect x="305" y="120" width="70" height="30" rx="6" fill="#7C3AED" opacity="0.12"/>
+  <text x="316" y="132" fill="#A1A1AA" font-family="sans-serif" font-size="8">Avg/call</text>
+  <text x="316" y="144" fill="#A78BFA" font-family="monospace" font-size="11" font-weight="bold">$0.034</text>
+  <!-- Legend dots -->
+  <circle cx="310" cy="168" r="3" fill="#7C3AED" opacity="0.7"/>
+  <text x="318" y="171" fill="#52525B" font-family="sans-serif" font-size="8">GPT-4o</text>
+  <circle cx="350" cy="168" r="3" fill="#7C3AED" opacity="0.3"/>
+  <text x="358" y="171" fill="#52525B" font-family="sans-serif" font-size="8">Claude</text>
+</svg>

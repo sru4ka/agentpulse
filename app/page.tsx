@@ -271,33 +271,61 @@ export default function LandingPage() {
           <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-4">Everything You Need</h2>
           <p className="text-[#A1A1AA] text-center mb-10 sm:mb-16 max-w-xl mx-auto text-sm sm:text-base">Complete observability for your AI agents, from cost tracking to error monitoring.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 hover:border-[#3A3A3D] transition">
-              <div className="w-12 h-12 bg-[#7C3AED]/10 rounded-xl flex items-center justify-center mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl overflow-hidden hover:border-[#3A3A3D] transition group">
+              <div className="w-full overflow-hidden">
+                <img src="/feature-cost.svg" alt="Cost tracking chart showing spending trends" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Real-time Cost Tracking</h3>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed">Know exactly how much every LLM call costs. Track spending by model, task, and time period. Never be surprised by your AI bill again.</p>
+              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#7C3AED]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#FAFAFA]">Real-time Cost Tracking</h3>
+                </div>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">Know exactly how much every LLM call costs. Track spending by model, task, and time period. Never be surprised by your AI bill again.</p>
+              </div>
             </div>
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 hover:border-[#3A3A3D] transition">
-              <div className="w-12 h-12 bg-[#EF4444]/10 rounded-xl flex items-center justify-center mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl overflow-hidden hover:border-[#3A3A3D] transition group">
+              <div className="w-full overflow-hidden">
+                <img src="/feature-errors.svg" alt="Error monitoring log showing API failures" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Error Monitoring</h3>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed">Catch rate limits, API failures, and auth errors instantly. Know why your agent stopped responding before your users notice.</p>
+              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#EF4444]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#FAFAFA]">Error Monitoring</h3>
+                </div>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">Catch rate limits, API failures, and auth errors instantly. Know why your agent stopped responding before your users notice.</p>
+              </div>
             </div>
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 hover:border-[#3A3A3D] transition">
-              <div className="w-12 h-12 bg-[#10B981]/10 rounded-xl flex items-center justify-center mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl overflow-hidden hover:border-[#3A3A3D] transition group">
+              <div className="w-full overflow-hidden">
+                <img src="/feature-replay.svg" alt="Prompt replay showing conversation flow" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Prompt Replay</h3>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed">See exactly what your agent sent to the LLM and what it got back. Full conversation replay with system prompts, tool calls, and responses.</p>
+              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#10B981]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#FAFAFA]">Prompt Replay</h3>
+                </div>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">See exactly what your agent sent to the LLM and what it got back. Full conversation replay with system prompts, tool calls, and responses.</p>
+              </div>
             </div>
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 hover:border-[#3A3A3D] transition">
-              <div className="w-12 h-12 bg-[#F59E0B]/10 rounded-xl flex items-center justify-center mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl overflow-hidden hover:border-[#3A3A3D] transition group">
+              <div className="w-full overflow-hidden">
+                <img src="/feature-alerts.svg" alt="Smart alerts panel showing active notifications" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Smart Alerts</h3>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed">Get notified when costs spike, errors accumulate, or rate limits hit. Set thresholds that matter to you and stay in control.</p>
+              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-[#F59E0B]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#FAFAFA]">Smart Alerts</h3>
+                </div>
+                <p className="text-sm text-[#A1A1AA] leading-relaxed">Get notified when costs spike, errors accumulate, or rate limits hit. Set thresholds that matter to you and stay in control.</p>
+              </div>
             </div>
           </div>
         </div>
