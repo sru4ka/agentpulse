@@ -55,11 +55,17 @@ class EventSender:
         if not self.buffer:
             return True
 
+        # Strip internal keys (prefixed with _) before sending
+        clean_events = [
+            {k: v for k, v in event.items() if not k.startswith("_")}
+            for event in self.buffer
+        ]
+
         payload = {
             "api_key": self.api_key,
             "agent_name": self.agent_name,
             "framework": self.framework,
-            "events": self.buffer,
+            "events": clean_events,
         }
 
         try:

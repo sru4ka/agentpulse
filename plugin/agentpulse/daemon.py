@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 
 from .config import load_config
-from .parser import parse_line, parse_prompt_line
+from .parser import parse_line, parse_prompt_line, parse_usage_line, extract_tokens_from_line, estimate_cost
 from .sender import EventSender
 
 logger = logging.getLogger("agentpulse")
@@ -23,6 +23,10 @@ class AgentPulseDaemon:
         self.file_positions: dict[str, int] = {}
         # Buffer for collecting prompt context between model events
         self._context_buffer: list[dict] = []
+        # Buffer for pending usage data (token counts from subsequent log lines)
+        self._pending_usage: dict | None = None
+        # Last event sent, so we can retroactively update tokens if usage comes after
+        self._last_event: dict | None = None
 
     def get_latest_log_file(self) -> str | None:
         log_path = self.config["log_path"]
@@ -56,9 +60,26 @@ class AgentPulseDaemon:
             return []
 
     def process_lines(self, lines: list[str]):
-        """Parse log lines and buffer events, attaching prompt context."""
+        """Parse log lines and buffer events, attaching prompt context and usage data."""
         for line in lines:
-            # First, try to parse as prompt/response context
+            # First, check if this is a token usage line (often comes after model line)
+            usage = parse_usage_line(line)
+            if usage:
+                if self._last_event and (self._last_event.get("_needs_usage")):
+                    # Update the last event with real token data
+                    self._last_event["input_tokens"] = usage["input_tokens"]
+                    self._last_event["output_tokens"] = usage["output_tokens"]
+                    model = self._last_event.get("_full_model", self._last_event.get("model", ""))
+                    cost = estimate_cost(model, usage["input_tokens"], usage["output_tokens"])
+                    self._last_event["cost_usd"] = round(cost, 6)
+                    self._last_event["_needs_usage"] = False
+                    logger.debug(f"Updated event with real tokens: {usage['input_tokens']}in/{usage['output_tokens']}out")
+                else:
+                    # Buffer usage for the next model event
+                    self._pending_usage = usage
+                continue
+
+            # Try to parse as prompt/response context
             ctx = parse_prompt_line(line)
             if ctx:
                 self._context_buffer.append(ctx)
@@ -67,6 +88,15 @@ class AgentPulseDaemon:
             # Then, try to parse as a model event
             event = parse_line(line)
             if event:
+                # If we have pending usage data, apply it now
+                if self._pending_usage:
+                    event["input_tokens"] = self._pending_usage["input_tokens"]
+                    event["output_tokens"] = self._pending_usage["output_tokens"]
+                    model_full = event.get("provider", "") + "/" + event.get("model", "") if event.get("provider") != "unknown" else event.get("model", "")
+                    cost = estimate_cost(model_full, self._pending_usage["input_tokens"], self._pending_usage["output_tokens"])
+                    event["cost_usd"] = round(cost, 6)
+                    self._pending_usage = None
+
                 # Attach buffered prompt context to this event
                 prompt_messages = []
                 response_parts = []
@@ -98,8 +128,15 @@ class AgentPulseDaemon:
                 # Clear context buffer for next event
                 self._context_buffer = []
 
+                # Store full model name for cost lookup and mark if usage may follow
+                event["_full_model"] = event.get("provider", "") + "/" + event.get("model", "") if event.get("provider") != "unknown" else event.get("model", "")
+                event["_needs_usage"] = True  # Usage line might follow
+
+                # Keep reference so usage lines that follow can update this event
+                self._last_event = event
+
                 self.sender.add_event(event)
-                logger.debug(f"Parsed event: {event['model']} ({event['status']}) with {len(prompt_messages)} prompt messages")
+                logger.debug(f"Parsed event: {event['model']} ({event['status']}) tokens={event['input_tokens']}in/{event['output_tokens']}out cost=${event['cost_usd']} with {len(prompt_messages)} prompt messages")
 
     def run(self):
         """Main daemon loop."""

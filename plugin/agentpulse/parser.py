@@ -6,8 +6,16 @@ from typing import Optional
 MODEL_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[gateway\]\s+agent model:\s+(.+)')
 ERROR_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[gateway\]\s+(error|Error|ERROR|rate.limit|Rate.limit|auth.error|timeout)', re.IGNORECASE)
 TOOL_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[gateway\].*tool[_\s]*(call|result|use).*?:\s*(\w+)', re.IGNORECASE)
-TOKEN_PATTERN = re.compile(r'tokens?[:\s]+(\d+)', re.IGNORECASE)
 LATENCY_PATTERN = re.compile(r'(\d+)\s*ms|latency[:\s]+(\d+)', re.IGNORECASE)
+
+# Token extraction patterns — match various gateway log formats
+TOKEN_TOTAL_PATTERN = re.compile(r'(?:total[_ ])?tokens?[:\s=]+(\d+)', re.IGNORECASE)
+TOKEN_INPUT_PATTERN = re.compile(r'(?:input|prompt|request)[_ ]?tokens?[:\s=]+(\d+)', re.IGNORECASE)
+TOKEN_OUTPUT_PATTERN = re.compile(r'(?:output|completion|response)[_ ]?tokens?[:\s=]+(\d+)', re.IGNORECASE)
+# JSON-style usage: {"prompt_tokens": 800, "completion_tokens": 434}
+TOKEN_JSON_PATTERN = re.compile(r'"(?:prompt|input)[_ ]?tokens?":\s*(\d+).*?"(?:completion|output)[_ ]?tokens?":\s*(\d+)', re.IGNORECASE)
+# usage line from gateway
+USAGE_LINE_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[gateway\]\s+(?:usage|tokens|token_usage)', re.IGNORECASE)
 
 # Patterns for capturing prompts and responses
 PROMPT_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+\[gateway\]\s+(?:prompt|user|input|message|request):\s*(.*)', re.IGNORECASE)
@@ -29,13 +37,45 @@ MODEL_PRICING = {
     "openai/o3-mini": {"input": 1.10, "output": 4.40},
 }
 
-def estimate_tokens(line: str) -> tuple[int, int]:
-    """Rough token estimation from log line content."""
-    # Very rough: ~4 chars per token for English text
+def extract_tokens_from_line(line: str) -> tuple[int, int]:
+    """Try to extract real token counts from a log line.
+    Returns (input_tokens, output_tokens). Either may be 0 if not found."""
+    input_tokens = 0
+    output_tokens = 0
+
+    # Try JSON-style first: {"prompt_tokens": 800, "completion_tokens": 434}
+    json_match = TOKEN_JSON_PATTERN.search(line)
+    if json_match:
+        return int(json_match.group(1)), int(json_match.group(2))
+
+    # Try separate input/output patterns
+    input_match = TOKEN_INPUT_PATTERN.search(line)
+    if input_match:
+        input_tokens = int(input_match.group(1))
+    output_match = TOKEN_OUTPUT_PATTERN.search(line)
+    if output_match:
+        output_tokens = int(output_match.group(1))
+
+    if input_tokens or output_tokens:
+        return input_tokens, output_tokens
+
+    # Fall back to total tokens (split 70/30 input/output)
+    total_match = TOKEN_TOTAL_PATTERN.search(line)
+    if total_match:
+        total = int(total_match.group(1))
+        return int(total * 0.7), total - int(total * 0.7)
+
+    return 0, 0
+
+
+def estimate_tokens_from_content(line: str) -> tuple[int, int]:
+    """Fallback: rough token estimation from log line content length.
+    Only used when no real token data is available."""
     content_length = len(line)
     input_tokens = max(100, content_length // 4)
     output_tokens = max(50, input_tokens // 3)
     return input_tokens, output_tokens
+
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """Calculate cost from model pricing."""
@@ -96,6 +136,32 @@ def parse_prompt_line(line: str) -> Optional[dict]:
     return None
 
 
+def parse_usage_line(line: str) -> Optional[dict]:
+    """Parse a token usage line from gateway logs.
+    Returns a dict with token info to be attached to the previous model event."""
+    line = line.strip()
+    if not line:
+        return None
+
+    # Check if this is a gateway usage/token line
+    if not USAGE_LINE_PATTERN.match(line) and not TOKEN_INPUT_PATTERN.search(line) and not TOKEN_OUTPUT_PATTERN.search(line) and not TOKEN_JSON_PATTERN.search(line):
+        # Also check for lines that contain token counts but aren't model/error/prompt lines
+        if not TOKEN_TOTAL_PATTERN.search(line):
+            return None
+        # Only consider it a usage line if it's from the gateway
+        if '[gateway]' not in line:
+            return None
+
+    input_tokens, output_tokens = extract_tokens_from_line(line)
+    if input_tokens > 0 or output_tokens > 0:
+        return {
+            "type": "usage",
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+    return None
+
+
 def parse_line(line: str) -> Optional[dict]:
     """Parse a single log line and return an event dict if it's an LLM call."""
     line = line.strip()
@@ -110,7 +176,13 @@ def parse_line(line: str) -> Optional[dict]:
         provider = model.split("/")[0] if "/" in model else "unknown"
         model_name = model.split("/")[-1] if "/" in model else model
 
-        input_tokens, output_tokens = estimate_tokens(line)
+        # Try to extract real tokens from the model line itself
+        input_tokens, output_tokens = extract_tokens_from_line(line)
+
+        # If no real tokens found, use content-based estimation as fallback
+        if input_tokens == 0 and output_tokens == 0:
+            input_tokens, output_tokens = estimate_tokens_from_content(line)
+
         cost = estimate_cost(model, input_tokens, output_tokens)
 
         # Check for latency
