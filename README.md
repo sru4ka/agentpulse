@@ -46,48 +46,19 @@ AgentPulse is a **real-time monitoring and observability platform** for AI agent
 - **Multi-agent Support** — Monitor multiple agents from a single dashboard
 - **Mobile Responsive** — Check your agents from your phone
 
-## Quick Start (Python SDK)
-
-### 1. Create an account
-
-Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) and get your API key from Settings.
-
-### 2. Install
-
-> **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package.
+## Quick Start
 
 ```bash
 pip install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin"
+agentpulse init                        # paste your API key
+agentpulse run python your_bot.py      # that's it — all LLM calls tracked
 ```
 
-### 3. Add 3 lines to your code
+> **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package. Always install from the git URL above.
 
-```python
-import agentpulse
-agentpulse.init(api_key="your-api-key", agent_name="my-bot")
-agentpulse.auto_instrument()
+Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) to get your API key, then view your dashboard at [agentpulses.com/dashboard](https://agentpulses.com/dashboard).
 
-# All OpenAI / Anthropic / MiniMax calls are now tracked automatically
-from openai import OpenAI
-client = OpenAI(api_key="...", base_url="https://api.minimaxi.chat/v1")  # works with any provider
-response = client.chat.completions.create(model="MiniMax-M2.5", messages=[...])
-# ^ This call is tracked with exact tokens and costs
-```
-
-### 4. View your dashboard
-
-Open [agentpulses.com/dashboard](https://agentpulses.com/dashboard) to see your agent's activity in real-time.
-
-### Alternative: Daemon mode (OpenClaw only)
-
-If you're using OpenClaw, you can use the daemon instead of the SDK:
-
-```bash
-sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
-agentpulse init        # configure API key
-agentpulse test        # verify connection
-agentpulse start -d    # run in background
-```
+No code changes needed. `agentpulse run` wraps your command and automatically intercepts all OpenAI/Anthropic SDK calls — including MiniMax, Together, Groq, DeepSeek, and any OpenAI-compatible provider.
 
 ## Supported Models & Providers
 
