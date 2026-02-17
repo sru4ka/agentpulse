@@ -269,10 +269,12 @@ export default function SettingsPage() {
             <div className="flex-1">
               <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Start the daemon</p>
               <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                agentpulse start
+                agentpulse start -d
               </code>
               <p className="text-xs text-[#A1A1AA] mt-1.5">
-                Runs in the foreground. Use <span className="text-[#FAFAFA]">agentpulse test</span> to verify the connection first.
+                The <span className="text-[#FAFAFA]">-d</span> flag runs it in the background &mdash; no need to keep a terminal open.
+                Use <span className="text-[#FAFAFA]">agentpulse status</span> to check and <span className="text-[#FAFAFA]">agentpulse stop</span> to stop.
+                Run <span className="text-[#FAFAFA]">agentpulse test</span> first to verify the connection.
               </p>
             </div>
           </div>

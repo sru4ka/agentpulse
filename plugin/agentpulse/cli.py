@@ -8,6 +8,7 @@ from .config import load_config, save_config, DEFAULT_CONFIG, DEFAULT_CONFIG_PAT
 from .daemon import AgentPulseDaemon
 
 PID_FILE = "/tmp/agentpulse.pid"
+LOG_FILE = os.path.expanduser("~/.openclaw/agentpulse.log")
 
 def cmd_init(args):
     """Interactive setup."""
@@ -54,7 +55,7 @@ def cmd_init(args):
     print(f"\nRun 'agentpulse start' to begin monitoring.")
 
 def cmd_start(args):
-    """Start the daemon."""
+    """Start the daemon (foreground or background)."""
     config = load_config()
     if not config.get("api_key"):
         print("❌ No API key configured.")
@@ -69,10 +70,67 @@ def cmd_start(args):
         try:
             os.kill(pid, 0)
             print(f"⚠️  AgentPulse is already running (PID {pid})")
+            print(f"   Use 'agentpulse stop' first, or 'agentpulse status' to check.")
             sys.exit(1)
         except OSError:
             os.remove(PID_FILE)
 
+    background = getattr(args, "background", False)
+
+    if background:
+        _start_background(config)
+    else:
+        _start_foreground(config)
+
+
+def _start_background(config):
+    """Fork into the background and run as a daemon."""
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+    pid = os.fork()
+    if pid > 0:
+        # Parent process — just print status and exit
+        print(f"🚀 AgentPulse started in background (PID {pid})")
+        print(f"   Agent: {config['agent_name']}")
+        print(f"   Watching: {config['log_path']}")
+        print(f"   Logs: {LOG_FILE}")
+        print(f"\n   Use 'agentpulse status' to check, 'agentpulse stop' to stop.")
+        # Write PID from parent so it's available immediately
+        with open(PID_FILE, "w") as f:
+            f.write(str(pid))
+        sys.exit(0)
+
+    # Child process — detach and run
+    os.setsid()
+
+    # Redirect stdout/stderr to log file
+    log_fd = os.open(LOG_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    os.dup2(log_fd, sys.stdout.fileno())
+    os.dup2(log_fd, sys.stderr.fileno())
+    os.close(log_fd)
+
+    # Close stdin
+    devnull = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(devnull, sys.stdin.fileno())
+    os.close(devnull)
+
+    # Setup logging to file
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    )
+
+    try:
+        daemon = AgentPulseDaemon()
+        daemon.run()
+    finally:
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+
+
+def _start_foreground(config):
+    """Run in the foreground (original behavior)."""
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
@@ -86,7 +144,8 @@ def cmd_start(args):
     print(f"🚀 AgentPulse daemon starting...")
     print(f"   Agent: {config['agent_name']}")
     print(f"   Watching: {config['log_path']}")
-    print(f"   Press Ctrl+C to stop\n")
+    print(f"   Press Ctrl+C to stop")
+    print(f"   Tip: use 'agentpulse start -d' to run in the background\n")
 
     try:
         daemon = AgentPulseDaemon()
@@ -219,13 +278,16 @@ def cmd_status(args):
     print(f"   API Key: {'configured' if config.get('api_key') else 'NOT SET'}")
     print(f"   Endpoint: {config.get('endpoint', 'not set')}")
     print(f"   Log path: {config.get('log_path', 'not set')}")
+    print(f"   Daemon log: {LOG_FILE}")
 
 def main():
     parser = argparse.ArgumentParser(description="AgentPulse — AI Agent Observability")
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("init", help="Interactive setup")
-    subparsers.add_parser("start", help="Start the daemon")
+    start_parser = subparsers.add_parser("start", help="Start the daemon")
+    start_parser.add_argument("-d", "--background", action="store_true",
+                              help="Run in the background (daemonize)")
     subparsers.add_parser("stop", help="Stop the daemon")
     subparsers.add_parser("status", help="Check daemon status")
     subparsers.add_parser("test", help="Send a test event to verify connection")
