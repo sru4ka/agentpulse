@@ -43,7 +43,7 @@ export default function SetupPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Setup</h1>
-        <p className="text-sm text-[#A1A1AA] mt-1">3 commands. Works with any LLM provider.</p>
+        <p className="text-sm text-[#A1A1AA] mt-1">3 commands on your server. Takes under a minute.</p>
       </div>
 
       {/* Quick API Key Copy */}
@@ -71,15 +71,13 @@ export default function SetupPage() {
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">1</div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Install</p>
+              <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Install on your server</p>
               <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap break-all">
-                pip install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot;
+                sudo apt install -y pipx && pipx install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot; && pipx ensurepath && source ~/.bashrc
               </code>
-              <div className="bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded-lg p-2.5 mt-2">
-                <p className="text-xs text-[#F59E0B]">
-                  Do <strong>not</strong> use <span className="font-mono">pip install agentpulse</span> &mdash; that&apos;s an unrelated PyPI package.
-                </p>
-              </div>
+              <p className="text-xs text-[#A1A1AA] mt-1.5">
+                SSH into your server and run this. One line, installs everything.
+              </p>
             </div>
           </div>
 
@@ -92,7 +90,7 @@ export default function SetupPage() {
                 agentpulse init
               </code>
               <p className="text-xs text-[#A1A1AA] mt-1.5">
-                Paste your API key from above when prompted.
+                Paste your API key from above when prompted. Hit enter to keep defaults for the rest.
               </p>
             </div>
           </div>
@@ -101,13 +99,13 @@ export default function SetupPage() {
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">3</div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Run your agent</p>
+              <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Start monitoring</p>
               <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                agentpulse run python your_bot.py
+                agentpulse start -d
               </code>
               <p className="text-xs text-[#A1A1AA] mt-1.5">
-                That&apos;s it. All LLM calls are tracked automatically &mdash; <strong className="text-[#FAFAFA]">no code changes needed</strong>.
-                Works with OpenAI, Anthropic, MiniMax, and any OpenAI-compatible provider.
+                That&apos;s it. AgentPulse runs in the background and <strong className="text-[#FAFAFA]">automatically tracks all LLM calls</strong> your agent makes.
+                Come back to the dashboard to see your data.
               </p>
             </div>
           </div>
@@ -148,24 +146,18 @@ export default function SetupPage() {
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">Dashboard shows 0 events / only test events</p>
             <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
-              <li>Make sure you&apos;re running your bot with <span className="text-[#7C3AED] font-mono">agentpulse run python your_bot.py</span> (not just <span className="font-mono">python your_bot.py</span>)</li>
+              <li>Make sure agentpulse is running: <span className="text-[#7C3AED] font-mono">agentpulse status</span></li>
+              <li>If stopped, start it again: <span className="text-[#7C3AED] font-mono">agentpulse start -d</span></li>
               <li>Run <span className="text-[#7C3AED] font-mono">agentpulse test</span> to confirm your API key works</li>
-              <li>Check that your bot is actually making LLM API calls</li>
+              <li>Check that your agent is actually making LLM API calls</li>
             </ul>
           </div>
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found</p>
             <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
-              <li>Make sure you installed with <span className="text-[#7C3AED] font-mono">pip install &quot;git+...&quot;</span></li>
-              <li>Try running <span className="text-[#7C3AED] font-mono">python -m agentpulse.cli</span> instead</li>
-              <li>On some systems you may need to add <span className="text-[#FAFAFA]">~/.local/bin</span> to your PATH</li>
-            </ul>
-          </div>
-          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
-            <p className="text-sm text-[#FAFAFA] font-medium mb-1">&ldquo;No apps associated with package&rdquo; / wrong package</p>
-            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
-              <li>The <span className="text-[#FAFAFA]">agentpulse</span> name on PyPI is an <em>unrelated</em> package &mdash; always install from the git URL</li>
-              <li>Uninstall the wrong one: <span className="text-[#7C3AED] font-mono">pip uninstall agentpulse</span></li>
+              <li>Run <span className="text-[#7C3AED] font-mono">source ~/.bashrc</span> or open a new terminal</li>
+              <li>Check pipx installed it: <span className="text-[#7C3AED] font-mono">pipx list</span></li>
+              <li>Make sure <span className="text-[#FAFAFA]">~/.local/bin</span> is in your PATH</li>
             </ul>
           </div>
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
@@ -178,14 +170,14 @@ export default function SetupPage() {
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">Useful commands</p>
             <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-              <div><span className="text-[#7C3AED] font-mono">agentpulse run ...</span></div>
-              <div className="text-[#A1A1AA]">Run with monitoring</div>
+              <div><span className="text-[#7C3AED] font-mono">agentpulse start -d</span></div>
+              <div className="text-[#A1A1AA]">Start monitoring (background)</div>
+              <div><span className="text-[#7C3AED] font-mono">agentpulse stop</span></div>
+              <div className="text-[#A1A1AA]">Stop monitoring</div>
+              <div><span className="text-[#7C3AED] font-mono">agentpulse status</span></div>
+              <div className="text-[#A1A1AA]">Check if running</div>
               <div><span className="text-[#7C3AED] font-mono">agentpulse test</span></div>
               <div className="text-[#A1A1AA]">Send a test event</div>
-              <div><span className="text-[#7C3AED] font-mono">agentpulse status</span></div>
-              <div className="text-[#A1A1AA]">Check config &amp; status</div>
-              <div><span className="text-[#7C3AED] font-mono">agentpulse init</span></div>
-              <div className="text-[#A1A1AA]">Reconfigure settings</div>
             </div>
           </div>
         </div>
