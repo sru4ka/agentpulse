@@ -2,10 +2,13 @@
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
+type Mode = "openclaw" | "python";
+
 export default function SetupPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<Mode>("openclaw");
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function SetupPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Setup</h1>
-        <p className="text-sm text-[#A1A1AA] mt-1">3 commands on your server. Takes under a minute.</p>
+        <p className="text-sm text-[#A1A1AA] mt-1">Get up and running in under a minute.</p>
       </div>
 
       {/* Quick API Key Copy */}
@@ -67,7 +70,7 @@ export default function SetupPage() {
       {/* Installation Steps */}
       <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6">
         <div className="space-y-5">
-          {/* Step 1 */}
+          {/* Step 1 — Install */}
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">1</div>
             <div className="flex-1">
@@ -81,7 +84,7 @@ export default function SetupPage() {
             </div>
           </div>
 
-          {/* Step 2 */}
+          {/* Step 2 — Configure */}
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">2</div>
             <div className="flex-1">
@@ -95,18 +98,68 @@ export default function SetupPage() {
             </div>
           </div>
 
-          {/* Step 3 */}
+          {/* Step 3 — Start monitoring (with mode tabs) */}
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">3</div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Start monitoring</p>
-              <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                agentpulse start -d
-              </code>
-              <p className="text-xs text-[#A1A1AA] mt-1.5">
-                That&apos;s it. AgentPulse runs in the background and <strong className="text-[#FAFAFA]">automatically tracks all LLM calls</strong> your agent makes.
-                Come back to the dashboard to see your data.
-              </p>
+              <p className="text-sm font-medium text-[#FAFAFA] mb-2">Start monitoring</p>
+
+              {/* Mode tabs */}
+              <div className="flex gap-1 mb-3 bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-1 w-fit">
+                <button
+                  onClick={() => setMode("openclaw")}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    mode === "openclaw"
+                      ? "bg-[#7C3AED]/15 text-[#7C3AED]"
+                      : "text-[#A1A1AA] hover:text-[#FAFAFA]"
+                  }`}
+                >
+                  OpenClaw / Node.js
+                </button>
+                <button
+                  onClick={() => setMode("python")}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    mode === "python"
+                      ? "bg-[#7C3AED]/15 text-[#7C3AED]"
+                      : "text-[#A1A1AA] hover:text-[#FAFAFA]"
+                  }`}
+                >
+                  Python
+                </button>
+              </div>
+
+              {mode === "openclaw" ? (
+                <>
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
+                    agentpulse start -d
+                  </code>
+                  <p className="text-xs text-[#A1A1AA] mt-1.5">
+                    Runs in the background and <strong className="text-[#FAFAFA]">automatically tracks all LLM calls</strong> your OpenClaw agent makes.
+                    No code changes needed.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#A1A1AA] font-medium">Option A: Wrap your command (zero code changes)</p>
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
+                      agentpulse run python your_script.py
+                    </code>
+                    <p className="text-xs text-[#A1A1AA] mt-1">
+                      Replace <span className="text-[#FAFAFA] font-mono">your_script.py</span> with the file that runs your bot. All OpenAI and Anthropic SDK calls are captured automatically.
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#2A2A2D] space-y-2">
+                    <p className="text-xs text-[#A1A1AA] font-medium">Option B: Add 2 lines to your code</p>
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#A1A1AA] font-mono whitespace-pre">{`import agentpulse
+agentpulse.init(api_key="${profile?.api_key?.slice(0, 12) || "ap_..."}...")
+agentpulse.auto_instrument()`}</code>
+                    <p className="text-xs text-[#A1A1AA]">
+                      Add this at the top of your script, <strong className="text-[#FAFAFA]">before</strong> importing OpenAI/Anthropic. That&apos;s it.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -150,6 +203,7 @@ export default function SetupPage() {
               <li>If stopped, start it again: <span className="text-[#7C3AED] font-mono">agentpulse start -d</span></li>
               <li>Run <span className="text-[#7C3AED] font-mono">agentpulse test</span> to confirm your API key works</li>
               <li>Check that your agent is actually making LLM API calls</li>
+              <li>Events are batched — wait up to 30 seconds for them to appear</li>
             </ul>
           </div>
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
@@ -168,6 +222,21 @@ export default function SetupPage() {
             </ul>
           </div>
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Python: no events showing up with agentpulse run</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>Make sure you&apos;re using the OpenAI or Anthropic Python SDK</li>
+              <li>Streaming calls are tracked when they complete</li>
+              <li>Check that <span className="text-[#7C3AED] font-mono">pip install openai</span> or <span className="text-[#7C3AED] font-mono">pip install anthropic</span> is installed in the same Python environment</li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Upgrading to latest version</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>Run: <span className="text-[#7C3AED] font-mono">pipx upgrade agentpulse</span></li>
+              <li>Then restart: <span className="text-[#7C3AED] font-mono">agentpulse stop && agentpulse start -d</span></li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">Useful commands</p>
             <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
               <div><span className="text-[#7C3AED] font-mono">agentpulse start -d</span></div>
@@ -178,6 +247,8 @@ export default function SetupPage() {
               <div className="text-[#A1A1AA]">Check if running</div>
               <div><span className="text-[#7C3AED] font-mono">agentpulse test</span></div>
               <div className="text-[#A1A1AA]">Send a test event</div>
+              <div><span className="text-[#7C3AED] font-mono">agentpulse run python ...</span></div>
+              <div className="text-[#A1A1AA]">Run with auto-instrumentation</div>
             </div>
           </div>
         </div>
