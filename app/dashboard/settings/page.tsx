@@ -222,9 +222,21 @@ export default function SettingsPage() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">1</div>
             <div className="flex-1">
               <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">Install the plugin</p>
-              <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                pip install agentpulse
-              </code>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-[#A1A1AA] mb-1">Recommended (uses pipx, auto-manages virtualenv):</p>
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
+                    sudo apt install pipx &amp;&amp; pipx install agentpulse
+                  </code>
+                </div>
+                <div>
+                  <p className="text-xs text-[#A1A1AA] mb-1">Alternative (manual venv):</p>
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap">
+                    python3 -m venv ~/.agentpulse-venv &amp;&amp; ~/.agentpulse-venv/bin/pip install agentpulse
+                  </code>
+                  <p className="text-xs text-[#A1A1AA] mt-1">Then use <span className="text-[#FAFAFA]">~/.agentpulse-venv/bin/agentpulse</span> instead of <span className="text-[#FAFAFA]">agentpulse</span></p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -264,9 +276,10 @@ export default function SettingsPage() {
             <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
               <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found</p>
               <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
-                <li>pip may have installed the binary to <span className="text-[#FAFAFA]">~/.local/bin/</span> which isn&apos;t in your PATH</li>
-                <li>Fix: <span className="text-[#7C3AED] font-mono">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</span> (add to your <span className="text-[#FAFAFA]">~/.bashrc</span> to make permanent)</li>
-                <li>Or run directly: <span className="text-[#7C3AED] font-mono">python3 -m agentpulse.cli start</span></li>
+                <li>If installed via pipx: run <span className="text-[#7C3AED] font-mono">pipx ensurepath</span> then restart your shell</li>
+                <li>If installed via pip: the binary is in <span className="text-[#FAFAFA]">~/.local/bin/</span> &mdash; add it to PATH: <span className="text-[#7C3AED] font-mono">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</span></li>
+                <li>If installed in a venv: use the full path, e.g. <span className="text-[#7C3AED] font-mono">~/.agentpulse-venv/bin/agentpulse start</span></li>
+                <li>On Debian/Ubuntu, <span className="text-[#7C3AED] font-mono">pip install</span> may be blocked &mdash; use <span className="text-[#7C3AED] font-mono">pipx install agentpulse</span> instead</li>
               </ul>
             </div>
             <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
