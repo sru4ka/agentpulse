@@ -236,7 +236,7 @@ class AgentPulseDaemon:
                 self.sender.flush()
                 break
             except Exception as e:
-                logger.error(f"Daemon error: {e}")
+                logger.error(f"Daemon error: {e}", exc_info=True)
                 time.sleep(poll_interval)
 
     def stop(self):
