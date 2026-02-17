@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { MobileNav } from "@/components/mobile-nav";
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0B]">
       {/* Navigation */}
-      <nav className="border-b border-[#2A2A2D] px-4 sm:px-6 py-4">
+      <nav className="border-b border-[#2A2A2D] px-4 sm:px-6 py-3 sm:py-4 relative">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-[#7C3AED] rounded-lg flex items-center justify-center">
@@ -15,12 +16,8 @@ export default function LandingPage() {
             <span className="text-[#FAFAFA] font-bold text-xl">AgentPulse</span>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
-            <Link href="/signup" className="bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-4 py-2 rounded-lg transition text-sm font-medium">
-              Get Started
-            </Link>
-          </div>
+          {/* Mobile hamburger menu */}
+          <MobileNav />
 
           <div className="hidden md:flex items-center gap-8 text-sm text-[#A1A1AA]">
             <a href="#features" className="hover:text-[#FAFAFA] transition">Features</a>
@@ -36,26 +33,26 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20">
+      <section className="px-4 sm:px-6 pt-10 sm:pt-24 pb-10 sm:pb-20">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-[#7C3AED]/10 border border-[#7C3AED]/20 text-[#7C3AED] text-sm px-4 py-1.5 rounded-full mb-6 sm:mb-8">
+          <div className="inline-flex items-center gap-2 bg-[#7C3AED]/10 border border-[#7C3AED]/20 text-[#7C3AED] text-xs sm:text-sm px-3 sm:px-4 py-1.5 rounded-full mb-5 sm:mb-8">
             <span className="w-2 h-2 bg-[#7C3AED] rounded-full animate-pulse" />
             Now tracking OpenClaw agents
           </div>
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold text-[#FAFAFA] leading-tight mb-4 sm:mb-6">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-[#FAFAFA] leading-tight mb-3 sm:mb-6">
             See everything your
             <br />
             <span className="text-[#7C3AED]">AI agent</span> does
           </h1>
-          <p className="text-lg sm:text-xl text-[#A1A1AA] max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed px-4">
+          <p className="text-base sm:text-xl text-[#A1A1AA] max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed">
             Stop burning money blind. Track every LLM call, monitor costs in real-time,
             and optimize your AI agents with actionable insights.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-            <Link href="/signup" className="w-full sm:w-auto bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-8 py-3.5 rounded-xl text-lg font-medium transition shadow-lg shadow-[#7C3AED]/25 text-center">
+            <Link href="/signup" className="w-full sm:w-auto bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-medium transition shadow-lg shadow-[#7C3AED]/25 text-center">
               Get Started Free
             </Link>
-            <Link href="/dashboard" className="w-full sm:w-auto border border-[#2A2A2D] hover:border-[#3A3A3D] text-[#FAFAFA] px-8 py-3.5 rounded-xl text-lg font-medium transition text-center">
+            <Link href="/dashboard" className="w-full sm:w-auto border border-[#2A2A2D] hover:border-[#3A3A3D] text-[#FAFAFA] px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-medium transition text-center">
               View Demo
             </Link>
           </div>
@@ -63,28 +60,28 @@ export default function LandingPage() {
       </section>
 
       {/* Stats Bar */}
-      <section className="border-y border-[#2A2A2D] px-4 sm:px-6 py-8 sm:py-12">
-        <div className="max-w-4xl mx-auto grid grid-cols-3 gap-4 sm:gap-8 text-center">
+      <section className="border-y border-[#2A2A2D] px-4 sm:px-6 py-6 sm:py-12">
+        <div className="max-w-4xl mx-auto grid grid-cols-3 gap-2 sm:gap-8 text-center">
           <div>
-            <div className="text-xl sm:text-3xl font-bold text-[#FAFAFA]">180,000+</div>
-            <div className="text-xs sm:text-sm text-[#A1A1AA] mt-1">OpenClaw users</div>
+            <div className="text-lg sm:text-3xl font-bold text-[#FAFAFA]">180,000+</div>
+            <div className="text-[10px] sm:text-sm text-[#A1A1AA] mt-0.5 sm:mt-1">OpenClaw users</div>
           </div>
           <div>
-            <div className="text-xl sm:text-3xl font-bold text-[#FAFAFA]">10x</div>
-            <div className="text-xs sm:text-sm text-[#A1A1AA] mt-1">Cost visibility</div>
+            <div className="text-lg sm:text-3xl font-bold text-[#FAFAFA]">10x</div>
+            <div className="text-[10px] sm:text-sm text-[#A1A1AA] mt-0.5 sm:mt-1">Cost visibility</div>
           </div>
           <div>
-            <div className="text-xl sm:text-3xl font-bold text-[#FAFAFA]">$0</div>
-            <div className="text-xs sm:text-sm text-[#A1A1AA] mt-1">To get started</div>
+            <div className="text-lg sm:text-3xl font-bold text-[#FAFAFA]">$0</div>
+            <div className="text-[10px] sm:text-sm text-[#A1A1AA] mt-0.5 sm:mt-1">To get started</div>
           </div>
         </div>
       </section>
 
       {/* Dashboard Preview */}
-      <section className="px-4 sm:px-6 py-16 sm:py-24">
+      <section className="px-4 sm:px-6 py-10 sm:py-24">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-4">Your Command Center</h2>
-          <p className="text-[#A1A1AA] text-center mb-8 sm:mb-12 max-w-xl mx-auto text-sm sm:text-base">See every LLM call, every dollar spent, every error — all in one dashboard.</p>
+          <h2 className="text-xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-2 sm:mb-4">Your Command Center</h2>
+          <p className="text-[#A1A1AA] text-center mb-6 sm:mb-12 max-w-xl mx-auto text-xs sm:text-base">See every LLM call, every dollar spent, every error — all in one dashboard.</p>
 
           {/* Dashboard Mockup */}
           <div className="bg-[#0E0E10] border border-[#2A2A2D] rounded-2xl overflow-hidden shadow-2xl shadow-[#7C3AED]/5">
@@ -238,25 +235,25 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="px-4 sm:px-6 py-16 sm:py-24">
+      <section id="how-it-works" className="px-4 sm:px-6 py-10 sm:py-24">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-4">How It Works</h2>
-          <p className="text-[#A1A1AA] text-center mb-10 sm:mb-16 max-w-xl mx-auto text-sm sm:text-base">Three steps to full observability. No code changes to your agent required.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8">
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 text-center">
-              <div className="text-3xl sm:text-4xl mb-4">1</div>
+          <h2 className="text-xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-2 sm:mb-4">How It Works</h2>
+          <p className="text-[#A1A1AA] text-center mb-6 sm:mb-16 max-w-xl mx-auto text-xs sm:text-base">Three steps to full observability. No code changes to your agent required.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-8">
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-5 sm:p-8 text-center">
+              <div className="text-2xl sm:text-4xl mb-3 sm:mb-4">1</div>
               <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Install Plugin</h3>
               <p className="text-sm text-[#A1A1AA] mb-4">One command to install on your server</p>
               <code className="text-sm text-[#7C3AED] bg-[#0A0A0B] px-3 py-1.5 rounded-lg break-all">pip install agentpulse</code>
             </div>
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 text-center">
-              <div className="text-3xl sm:text-4xl mb-4">2</div>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-5 sm:p-8 text-center">
+              <div className="text-2xl sm:text-4xl mb-3 sm:mb-4">2</div>
               <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">Connect Agent</h3>
               <p className="text-sm text-[#A1A1AA] mb-4">One config file with your API key</p>
               <code className="text-sm text-[#7C3AED] bg-[#0A0A0B] px-3 py-1.5 rounded-lg">agentpulse init</code>
             </div>
-            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8 text-center">
-              <div className="text-3xl sm:text-4xl mb-4">3</div>
+            <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-5 sm:p-8 text-center">
+              <div className="text-2xl sm:text-4xl mb-3 sm:mb-4">3</div>
               <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">See Everything</h3>
               <p className="text-sm text-[#A1A1AA] mb-4">Real-time dashboard with full visibility</p>
               <code className="text-sm text-[#7C3AED] bg-[#0A0A0B] px-3 py-1.5 rounded-lg">agentpulses.com</code>
@@ -266,16 +263,16 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="px-4 sm:px-6 py-16 sm:py-24 border-t border-[#2A2A2D]">
+      <section id="features" className="px-4 sm:px-6 py-10 sm:py-24 border-t border-[#2A2A2D]">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-4">Everything You Need</h2>
-          <p className="text-[#A1A1AA] text-center mb-10 sm:mb-16 max-w-xl mx-auto text-sm sm:text-base">Complete observability for your AI agents, from cost tracking to error monitoring.</p>
+          <h2 className="text-xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-2 sm:mb-4">Everything You Need</h2>
+          <p className="text-[#A1A1AA] text-center mb-6 sm:mb-16 max-w-xl mx-auto text-xs sm:text-base">Complete observability for your AI agents, from cost tracking to error monitoring.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl overflow-hidden hover:border-[#3A3A3D] transition group">
               <div className="w-full overflow-hidden">
                 <img src="/feature-cost.svg" alt="Cost tracking chart showing spending trends" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+              <div className="p-4 sm:p-8 pt-3 sm:pt-5">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-[#7C3AED]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
@@ -289,7 +286,7 @@ export default function LandingPage() {
               <div className="w-full overflow-hidden">
                 <img src="/feature-errors.svg" alt="Error monitoring log showing API failures" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+              <div className="p-4 sm:p-8 pt-3 sm:pt-5">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-[#EF4444]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
@@ -303,7 +300,7 @@ export default function LandingPage() {
               <div className="w-full overflow-hidden">
                 <img src="/feature-replay.svg" alt="Prompt replay showing conversation flow" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+              <div className="p-4 sm:p-8 pt-3 sm:pt-5">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-[#10B981]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>
@@ -317,7 +314,7 @@ export default function LandingPage() {
               <div className="w-full overflow-hidden">
                 <img src="/feature-alerts.svg" alt="Smart alerts panel showing active notifications" className="w-full h-auto group-hover:scale-[1.02] transition-transform duration-300" />
               </div>
-              <div className="p-6 sm:p-8 pt-4 sm:pt-5">
+              <div className="p-4 sm:p-8 pt-3 sm:pt-5">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-[#F59E0B]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
@@ -332,10 +329,10 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="px-4 sm:px-6 py-16 sm:py-24 border-t border-[#2A2A2D]">
+      <section id="pricing" className="px-4 sm:px-6 py-10 sm:py-24 border-t border-[#2A2A2D]">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-4">Simple Pricing</h2>
-          <p className="text-[#A1A1AA] text-center mb-10 sm:mb-16">Start free. Scale when you need to.</p>
+          <h2 className="text-xl sm:text-3xl font-bold text-[#FAFAFA] text-center mb-2 sm:mb-4">Simple Pricing</h2>
+          <p className="text-[#A1A1AA] text-center mb-6 sm:mb-16 text-xs sm:text-base">Start free. Scale when you need to.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             {/* Free */}
             <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8">
@@ -429,18 +426,18 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="px-4 sm:px-6 py-16 sm:py-24 border-t border-[#2A2A2D]">
+      <section className="px-4 sm:px-6 py-10 sm:py-24 border-t border-[#2A2A2D]">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#FAFAFA] mb-4">Ready to stop flying blind?</h2>
-          <p className="text-[#A1A1AA] mb-8">Set up in 2 minutes. No credit card required.</p>
-          <Link href="/signup" className="inline-block bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-8 py-3.5 rounded-xl text-lg font-medium transition shadow-lg shadow-[#7C3AED]/25">
+          <h2 className="text-xl sm:text-3xl font-bold text-[#FAFAFA] mb-2 sm:mb-4">Ready to stop flying blind?</h2>
+          <p className="text-[#A1A1AA] mb-6 sm:mb-8 text-sm sm:text-base">Set up in 2 minutes. No credit card required.</p>
+          <Link href="/signup" className="inline-block bg-[#7C3AED] hover:bg-[#8B5CF6] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-medium transition shadow-lg shadow-[#7C3AED]/25">
             Get Started Free
           </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#2A2A2D] px-4 sm:px-6 py-8 sm:py-12">
+      <footer className="border-t border-[#2A2A2D] px-4 sm:px-6 py-6 sm:py-12">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-[#7C3AED] rounded-md flex items-center justify-center">
