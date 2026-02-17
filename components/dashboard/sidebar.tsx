@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
@@ -10,6 +10,20 @@ const PLAN_COLORS: Record<string, string> = {
   pro: "#7C3AED",
   team: "#F59E0B",
   enterprise: "#10B981",
+};
+
+const PLAN_RANK: Record<string, number> = {
+  free: 0,
+  pro: 1,
+  team: 2,
+  enterprise: 3,
+};
+
+// Minimum plan required for each route (omitted = free / always accessible)
+const PLAN_REQUIRED: Record<string, string> = {
+  "/dashboard/events": "pro",
+  "/dashboard/costs": "pro",
+  "/dashboard/alerts": "pro",
 };
 
 const navItems = [
@@ -103,6 +117,7 @@ interface SidebarProps {
 
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [plan, setPlan] = useState<string>("free");
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -133,6 +148,7 @@ export default function Sidebar({ user }: SidebarProps) {
     window.location.href = "/";
   };
 
+  const userRank = PLAN_RANK[plan] ?? 0;
   const planColor = PLAN_COLORS[plan] || PLAN_COLORS.free;
 
   const sidebarContent = (
@@ -167,6 +183,28 @@ export default function Sidebar({ user }: SidebarProps) {
                 ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
 
+            const requiredPlan = PLAN_REQUIRED[item.href];
+            const requiredRank = requiredPlan ? (PLAN_RANK[requiredPlan] ?? 0) : 0;
+            const isLocked = requiredPlan && userRank < requiredRank;
+
+            if (isLocked) {
+              return (
+                <li key={item.href}>
+                  <button
+                    onClick={() => router.push("/dashboard/billing")}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium w-full text-left text-[#3F3F46] cursor-pointer hover:bg-[#141415] transition-colors group"
+                    title={`Upgrade to ${requiredPlan} to unlock ${item.label}`}
+                  >
+                    <span className="opacity-40">{item.icon}</span>
+                    <span>{item.label}</span>
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-[#7C3AED]/15 text-[#7C3AED] font-bold uppercase tracking-wider group-hover:bg-[#7C3AED]/25 transition-colors">
+                      PRO
+                    </span>
+                  </button>
+                </li>
+              );
+            }
+
             return (
               <li key={item.href}>
                 <Link
@@ -185,6 +223,18 @@ export default function Sidebar({ user }: SidebarProps) {
           })}
         </ul>
       </nav>
+
+      {/* Upgrade CTA for free users */}
+      {plan === "free" && (
+        <div className="px-4 py-3">
+          <button
+            onClick={() => router.push("/dashboard/billing")}
+            className="w-full bg-gradient-to-r from-[#7C3AED] to-[#6D28D9] text-white text-xs font-semibold py-2.5 px-4 rounded-lg hover:from-[#6D28D9] hover:to-[#5B21B6] transition-all"
+          >
+            Upgrade to Pro
+          </button>
+        </div>
+      )}
 
       {/* User / Sign Out */}
       <div className="px-4 py-4 border-t border-[#2A2A2D]">
