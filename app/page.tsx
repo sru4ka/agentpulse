@@ -450,7 +450,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6 text-sm text-[#A1A1AA]">
             <Link href="/docs" className="hover:text-[#FAFAFA] transition">Docs</Link>
             <a href="https://github.com/sru4ka/agentpulse" target="_blank" rel="noopener noreferrer" className="hover:text-[#FAFAFA] transition">GitHub</a>
-            <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#FAFAFA] transition">X/Twitter</a>
+            <a href="https://x.com/agentpulses" target="_blank" rel="noopener noreferrer" className="hover:text-[#FAFAFA] transition">X/Twitter</a>
           </div>
           <p className="text-sm text-[#A1A1AA]">&copy; 2026 AgentPulse. All rights reserved.</p>
         </div>
