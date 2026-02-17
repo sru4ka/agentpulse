@@ -313,6 +313,14 @@ export async function POST(request: Request) {
         .lt('timestamp', cutoff.toISOString())
     }
 
+    // Trigger alert checks asynchronously (fire-and-forget)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    fetch(`${baseUrl}/api/alerts/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agent!.id }),
+    }).catch(() => { /* non-critical */ })
+
     return NextResponse.json({ success: true, events_received: eventRows.length })
   } catch (err: any) {
     return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 })

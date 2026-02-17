@@ -56,50 +56,50 @@ function CreditCardIcon() {
   );
 }
 
-function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof STRIPE_PLANS[0]; onCancel: () => void }) {
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [name, setName] = useState("");
+function StripeCheckoutButton({ selectedPlan, onCancel }: { selectedPlan: typeof STRIPE_PLANS[0]; onCancel: () => void }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  const supabase = createBrowserSupabaseClient();
 
-  const formatCardNumber = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 16);
-    return digits.replace(/(.{4})/g, "$1 ").trim();
-  };
-
-  const formatExpiry = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 4);
-    if (digits.length >= 3) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return digits;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCheckout = async () => {
     setError("");
     setProcessing(true);
 
-    // In production, this would create a Stripe checkout session via API
-    // For now, show a message directing to Stripe setup
-    setTimeout(() => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("Please sign in to continue.");
+        setProcessing(false);
+        return;
+      }
+
+      const res = await fetch("/api/payments/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan_id: selectedPlan.id }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to start checkout.");
+        setProcessing(false);
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
+    } catch {
+      setError("Something went wrong. Please try again.");
       setProcessing(false);
-      setError("Stripe integration requires API keys. Set STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY in your environment to enable payments.");
-    }, 1500);
+    }
   };
-
-  const getCardBrand = () => {
-    const num = cardNumber.replace(/\s/g, "");
-    if (num.startsWith("4")) return "Visa";
-    if (num.startsWith("5") || num.startsWith("2")) return "Mastercard";
-    if (num.startsWith("3")) return "Amex";
-    return null;
-  };
-
-  const brand = getCardBrand();
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-medium text-[#FAFAFA]">
           Subscribe to {selectedPlan.name} — ${selectedPlan.price}/{selectedPlan.interval}
@@ -109,65 +109,14 @@ function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof S
         </button>
       </div>
 
-      {/* Card Number */}
-      <div>
-        <label className="block text-xs text-[#A1A1AA] mb-1.5">Card number</label>
-        <div className="relative">
-          <input
-            type="text"
-            value={cardNumber}
-            onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-            placeholder="1234 5678 9012 3456"
-            className="w-full bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#3A3A3D] focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]/30 font-mono tracking-wider"
-            maxLength={19}
-          />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-            {brand && (
-              <span className="text-[10px] font-medium text-[#A1A1AA] bg-[#2A2A2D] px-1.5 py-0.5 rounded">
-                {brand}
-              </span>
-            )}
-            <CreditCardIcon />
-          </div>
-        </div>
-      </div>
-
-      {/* Expiry + CVC */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-[#A1A1AA] mb-1.5">Expiration</label>
-          <input
-            type="text"
-            value={expiry}
-            onChange={(e) => setExpiry(formatExpiry(e.target.value))}
-            placeholder="MM/YY"
-            className="w-full bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#3A3A3D] focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]/30 font-mono"
-            maxLength={5}
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-[#A1A1AA] mb-1.5">CVC</label>
-          <input
-            type="text"
-            value={cvc}
-            onChange={(e) => setCvc(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            placeholder="123"
-            className="w-full bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#3A3A3D] focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]/30 font-mono"
-            maxLength={4}
-          />
-        </div>
-      </div>
-
-      {/* Name on card */}
-      <div>
-        <label className="block text-xs text-[#A1A1AA] mb-1.5">Name on card</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="John Smith"
-          className="w-full bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#3A3A3D] focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]/30"
-        />
+      <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4">
+        <ul className="space-y-1.5 mb-4">
+          {selectedPlan.features.map((f) => (
+            <li key={f} className="text-sm text-[#A1A1AA] flex items-center gap-2">
+              <span className="text-[#10B981]">&#10003;</span> {f}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {error && (
@@ -177,8 +126,8 @@ function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof S
       )}
 
       <button
-        type="submit"
-        disabled={processing || !cardNumber || !expiry || !cvc || !name}
+        onClick={handleCheckout}
+        disabled={processing}
         className="w-full bg-[#7C3AED] hover:bg-[#8B5CF6] disabled:bg-[#7C3AED]/50 disabled:cursor-not-allowed text-white py-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
       >
         {processing ? (
@@ -187,7 +136,7 @@ function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof S
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Processing...
+            Redirecting to Stripe...
           </>
         ) : (
           <>
@@ -195,7 +144,7 @@ function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof S
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
             </svg>
-            Pay ${selectedPlan.price}/{selectedPlan.interval}
+            Continue to Checkout — ${selectedPlan.price}/{selectedPlan.interval}
           </>
         )}
       </button>
@@ -205,9 +154,9 @@ function StripeCheckoutForm({ selectedPlan, onCancel }: { selectedPlan: typeof S
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0110 0v4" />
         </svg>
-        Secured by Stripe. We never store your card details.
+        Secured by Stripe. You&apos;ll be redirected to complete payment.
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -364,7 +313,7 @@ export default function BillingPage() {
           )}
 
           {paymentMethod === "card" && selectedStripePlan && (
-            <StripeCheckoutForm
+            <StripeCheckoutButton
               selectedPlan={selectedStripePlan}
               onCancel={() => setSelectedStripePlan(null)}
             />
