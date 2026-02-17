@@ -211,6 +211,10 @@ def parse_openclaw_line(raw_line: str) -> Optional[dict]:
     timestamp = meta.get("date") or obj.get("time", "")
     log_level = meta.get("logLevelName", "DEBUG")
 
+    # Some log lines have a dict instead of a string in the message field
+    if isinstance(message, dict):
+        message = json.dumps(message)
+
     # Parse subsystem name from the JSON-encoded "0" field
     subsystem = ""
     try:
