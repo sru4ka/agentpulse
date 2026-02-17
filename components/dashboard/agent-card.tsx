@@ -18,7 +18,7 @@ export default function AgentCard({ agent, todayCost }: AgentCardProps) {
   const isActive = agent.status === "active";
 
   return (
-    <Link href={`/dashboard/agents/${agent.id}`} className="group block">
+    <Link href={`/dashboard/activity?agent=${agent.id}`} className="group block">
       <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-5 transition-all duration-200 cursor-pointer group-hover:border-[#7C3AED]/50 group-hover:bg-[#7C3AED]/[0.03] group-hover:shadow-[0_0_20px_rgba(124,58,237,0.08)]">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[#FAFAFA] font-bold text-base truncate">{agent.name}</h3>

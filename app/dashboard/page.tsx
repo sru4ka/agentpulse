@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEventStream } from "@/lib/use-event-stream";
 import StatCard from "@/components/dashboard/stat-card";
 import EventLog from "@/components/dashboard/event-log";
 import AgentCard from "@/components/dashboard/agent-card";
@@ -12,12 +13,16 @@ import { formatCost, formatNumber } from "@/lib/utils";
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
     const fetchStats = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+
+      setAccessToken(session.access_token);
 
       const res = await fetch("/api/stats", {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -28,6 +33,34 @@ export default function DashboardPage() {
     };
     fetchStats();
   }, []);
+
+  // Real-time updates via SSE
+  const onEvents = useCallback((newEvents: any[]) => {
+    setStats((prev: any) => {
+      if (!prev) return prev;
+      // Prepend new events to recent_events (dedup by id)
+      const existingIds = new Set((prev.recent_events || []).map((e: any) => e.id));
+      const fresh = newEvents.filter((e) => !existingIds.has(e.id));
+      return {
+        ...prev,
+        recent_events: [...fresh, ...(prev.recent_events || [])].slice(0, 50),
+      };
+    });
+  }, []);
+
+  const onStats = useCallback((todayStats: { cost: number; tokens: number; events: number; errors: number }) => {
+    setStats((prev: any) => {
+      if (!prev) return prev;
+      return { ...prev, today: todayStats };
+    });
+  }, []);
+
+  useEventStream(accessToken, {
+    onEvents,
+    onStats,
+    onConnect: () => setLiveConnected(true),
+    onDisconnect: () => setLiveConnected(false),
+  });
 
   if (loading) {
     return (
@@ -74,7 +107,15 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[#FAFAFA]">Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-[#FAFAFA]">Dashboard</h1>
+          {liveConnected && (
+            <span className="flex items-center gap-1.5 text-[10px] text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
         <p className="text-sm text-[#A1A1AA]">{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
       </div>
 

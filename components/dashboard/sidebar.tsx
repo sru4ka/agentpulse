@@ -36,21 +36,11 @@ const navItems = [
     ),
   },
   {
-    label: "Events",
-    href: "/dashboard/events",
+    label: "Activity",
+    href: "/dashboard/activity",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M3 4h14M3 8h10M3 12h14M3 16h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    label: "Costs",
-    href: "/dashboard/costs",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 2V18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <path d="M14 6C14 4.34315 12.2091 3 10 3C7.79086 3 6 4.34315 6 6C6 7.65685 7.79086 9 10 9C12.2091 9 14 10.3431 14 12C14 13.6569 12.2091 15 10 15C7.79086 15 6 13.6569 6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
