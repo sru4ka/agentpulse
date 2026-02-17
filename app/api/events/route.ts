@@ -102,28 +102,75 @@ export async function POST(request: Request) {
         .eq('id', agent.id)
     }
 
+    // Model pricing per million tokens (server-side fallback)
+    const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+      'MiniMax-M2.5': { input: 15, output: 120 },
+      'claude-sonnet-4-5': { input: 3, output: 15 },
+      'claude-haiku-3.5': { input: 0.80, output: 4 },
+      'claude-opus-4': { input: 15, output: 75 },
+      'gpt-4o': { input: 2.50, output: 10 },
+      'gpt-4o-mini': { input: 0.15, output: 0.60 },
+      'o3-mini': { input: 1.10, output: 4.40 },
+    }
+
+    function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+      const pricing = MODEL_PRICING[model] || Object.entries(MODEL_PRICING).find(
+        ([k]) => model.toLowerCase().includes(k.toLowerCase())
+      )?.[1]
+      if (!pricing) return 0
+      return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
+    }
+
     // Insert events — store prompt_messages and response_text in metadata JSONB
-    // (these don't have dedicated columns in the events table)
-    const eventRows = events.map((e: any) => ({
-      agent_id: agent!.id,
-      timestamp: e.timestamp || new Date().toISOString(),
-      provider: e.provider || 'unknown',
-      model: e.model || 'unknown',
-      input_tokens: e.input_tokens || 0,
-      output_tokens: e.output_tokens || 0,
-      total_tokens: (e.input_tokens || 0) + (e.output_tokens || 0),
-      cost_usd: e.cost_usd || 0,
-      latency_ms: e.latency_ms || null,
-      status: e.status || 'success',
-      error_message: e.error_message || null,
-      task_context: e.task_context || null,
-      tools_used: e.tools_used || [],
-      metadata: {
-        ...(e.metadata || {}),
-        ...(e.prompt_messages ? { prompt_messages: e.prompt_messages } : {}),
-        ...(e.response_text ? { response_text: e.response_text } : {}),
-      },
-    }))
+    // If plugin sends 0 tokens for a success event, estimate server-side
+    const eventRows = events.map((e: any) => {
+      let inputTokens = e.input_tokens || 0
+      let outputTokens = e.output_tokens || 0
+      let costUsd = e.cost_usd || 0
+
+      // Server-side fallback: if plugin sent 0 tokens for a successful call,
+      // estimate reasonable defaults based on the model
+      if (inputTokens === 0 && outputTokens === 0 && (e.status === 'success' || !e.status)) {
+        // Estimate from prompt content if available
+        const promptText = Array.isArray(e.prompt_messages)
+          ? e.prompt_messages.map((m: any) => m.content || '').join(' ')
+          : ''
+        const responseText = e.response_text || ''
+
+        if (promptText || responseText) {
+          // ~4 chars per token for English
+          inputTokens = Math.max(100, Math.round(promptText.length / 4))
+          outputTokens = Math.max(50, Math.round(responseText.length / 4))
+        } else {
+          // Minimum reasonable estimate for an LLM call
+          inputTokens = 500
+          outputTokens = 200
+        }
+        costUsd = estimateCost(e.model || 'unknown', inputTokens, outputTokens)
+      }
+
+      return {
+        agent_id: agent!.id,
+        timestamp: e.timestamp || new Date().toISOString(),
+        provider: e.provider || 'unknown',
+        model: e.model || 'unknown',
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens,
+        cost_usd: Math.round(costUsd * 1_000_000) / 1_000_000,
+        latency_ms: e.latency_ms || null,
+        status: e.status || 'success',
+        error_message: e.error_message || null,
+        task_context: e.task_context || null,
+        tools_used: e.tools_used || [],
+        metadata: {
+          ...(e.metadata || {}),
+          ...(e.prompt_messages ? { prompt_messages: e.prompt_messages } : {}),
+          ...(e.response_text ? { response_text: e.response_text } : {}),
+          ...((e.input_tokens === 0 && e.output_tokens === 0) ? { tokens_estimated: true } : {}),
+        },
+      }
+    })
 
     const { error: insertError } = await supabase
       .from('events')
