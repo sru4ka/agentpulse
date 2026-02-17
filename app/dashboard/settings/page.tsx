@@ -225,14 +225,15 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <div>
                   <p className="text-xs text-[#A1A1AA] mb-1">Recommended (uses pipx, auto-manages virtualenv):</p>
-                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
-                    sudo apt install pipx &amp;&amp; pipx install agentpulse
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap break-all">
+                    sudo apt install -y pipx &amp;&amp; pipx install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot; &amp;&amp; pipx ensurepath
                   </code>
+                  <p className="text-xs text-[#A1A1AA] mt-1">Restart your shell after running <span className="text-[#FAFAFA]">pipx ensurepath</span></p>
                 </div>
                 <div>
                   <p className="text-xs text-[#A1A1AA] mb-1">Alternative (manual venv):</p>
-                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap">
-                    python3 -m venv ~/.agentpulse-venv &amp;&amp; ~/.agentpulse-venv/bin/pip install agentpulse
+                  <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap break-all">
+                    python3 -m venv ~/.agentpulse-venv &amp;&amp; ~/.agentpulse-venv/bin/pip install &quot;git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin&quot;
                   </code>
                   <p className="text-xs text-[#A1A1AA] mt-1">Then use <span className="text-[#FAFAFA]">~/.agentpulse-venv/bin/agentpulse</span> instead of <span className="text-[#FAFAFA]">agentpulse</span></p>
                 </div>
