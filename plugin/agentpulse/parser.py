@@ -217,11 +217,14 @@ def parse_openclaw_line(raw_line: str) -> Optional[dict]:
 
     # Parse subsystem name from the JSON-encoded "0" field
     subsystem = ""
-    try:
-        sub_obj = json.loads(subsystem_raw)
-        subsystem = sub_obj.get("subsystem", "")
-    except (json.JSONDecodeError, ValueError, TypeError):
-        subsystem = subsystem_raw
+    if isinstance(subsystem_raw, dict):
+        subsystem = subsystem_raw.get("subsystem", "")
+    else:
+        try:
+            sub_obj = json.loads(subsystem_raw)
+            subsystem = sub_obj.get("subsystem", "")
+        except (json.JSONDecodeError, ValueError, TypeError):
+            subsystem = subsystem_raw
 
     if not message:
         return None
