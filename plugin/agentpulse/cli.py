@@ -3,6 +3,9 @@ import sys
 import signal
 import logging
 import argparse
+import shutil
+import subprocess
+import tempfile
 
 from .config import load_config, save_config, DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
 from .daemon import AgentPulseDaemon
@@ -52,7 +55,65 @@ def cmd_init(args):
     print(f"\n✅ Config saved to {DEFAULT_CONFIG_PATH}")
     print(f"   Agent: {config['agent_name']}")
     print(f"   Endpoint: {config['endpoint']}")
-    print(f"\nRun 'agentpulse start' to begin monitoring.")
+    print(f"\nNow run your agent with:")
+    print(f"   agentpulse run python your_bot.py")
+    print(f"\nAll LLM calls (OpenAI, Anthropic, MiniMax, etc.) will be tracked automatically.")
+
+def cmd_run(args):
+    """Run a command with automatic LLM instrumentation.
+
+    Wraps the given command so that all OpenAI/Anthropic SDK calls made by the
+    process are captured and sent to AgentPulse — no code changes required.
+
+    Usage: agentpulse run python my_bot.py
+           agentpulse run python -m my_module
+    """
+    config = load_config()
+    if not config.get("api_key"):
+        print("❌ No API key configured.")
+        print("   Run 'agentpulse init' first.")
+        sys.exit(1)
+
+    if not args.cmd:
+        print("❌ No command provided.")
+        print("   Usage: agentpulse run python my_bot.py")
+        sys.exit(1)
+
+    # Find the agentpulse package directory (parent of this file's dir)
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    pkg_parent = os.path.dirname(pkg_dir)
+
+    # Create a temporary directory with sitecustomize.py for auto-injection
+    bootstrap_dir = tempfile.mkdtemp(prefix="agentpulse_")
+    bootstrap_src = os.path.join(pkg_dir, "_bootstrap_sitecustomize.py")
+    bootstrap_dst = os.path.join(bootstrap_dir, "sitecustomize.py")
+    shutil.copy2(bootstrap_src, bootstrap_dst)
+
+    # Set up environment for the subprocess
+    env = os.environ.copy()
+
+    # Tell the bootstrap where to find the agentpulse package
+    env["_AGENTPULSE_PKG_PATH"] = pkg_parent
+
+    # Prepend bootstrap dir to PYTHONPATH so sitecustomize.py gets loaded
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = bootstrap_dir + (":" + existing if existing else "")
+
+    agent_name = config.get("agent_name", "default")
+    print(f"🚀 AgentPulse: monitoring LLM calls for '{agent_name}'")
+    print(f"   Running: {' '.join(args.cmd)}\n")
+
+    try:
+        result = subprocess.run(args.cmd, env=env)
+        sys.exit(result.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except FileNotFoundError:
+        print(f"❌ Command not found: {args.cmd[0]}")
+        sys.exit(127)
+    finally:
+        shutil.rmtree(bootstrap_dir, ignore_errors=True)
+
 
 def cmd_start(args):
     """Start the daemon (foreground or background)."""
@@ -285,7 +346,10 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("init", help="Interactive setup")
-    start_parser = subparsers.add_parser("start", help="Start the daemon")
+    run_parser = subparsers.add_parser("run", help="Run a command with LLM monitoring")
+    run_parser.add_argument("cmd", nargs=argparse.REMAINDER,
+                            help="Command to run (e.g. python my_bot.py)")
+    start_parser = subparsers.add_parser("start", help="Start the log-tail daemon (OpenClaw)")
     start_parser.add_argument("-d", "--background", action="store_true",
                               help="Run in the background (daemonize)")
     subparsers.add_parser("stop", help="Stop the daemon")
@@ -296,6 +360,7 @@ def main():
 
     commands = {
         "init": cmd_init,
+        "run": cmd_run,
         "start": cmd_start,
         "stop": cmd_stop,
         "status": cmd_status,
