@@ -104,6 +104,10 @@ TOOL_START_RE = re.compile(
 TOOL_END_RE = re.compile(
     r'embedded run tool end:.*?runId=(\S+)\s+tool=(\S+)\s+toolCallId=(\S+)'
 )
+# "embedded run start: runId=xxx sessionId=xxx provider=anthropic model=claude-haiku-4-5 thinking=low messageChannel=unknown"
+RUN_START_RE = re.compile(
+    r'embedded run start:.*?runId=(\S+).*?sessionId=(\S+).*?provider=(\S+).*?model=(\S+)'
+)
 # "embedded run agent end: runId=xxx"
 AGENT_END_RE = re.compile(r'embedded run agent end:.*?runId=(\S+)')
 # "[tools] edit failed: ..."
@@ -228,6 +232,19 @@ def parse_openclaw_line(raw_line: str) -> Optional[dict]:
 
     if not message:
         return None
+
+    # ── "embedded run start" = new LLM run started (has model/provider) ──
+    m = RUN_START_RE.search(message)
+    if m:
+        return {
+            "type": "run_start",
+            "run_id": m.group(1),
+            "session_id": m.group(2),
+            "provider": m.group(3),
+            "model": m.group(4),
+            "timestamp": timestamp,
+            "subsystem": subsystem,
+        }
 
     # ── "embedded run prompt end" = one LLM interaction completed ──
     m = PROMPT_END_RE.search(message)

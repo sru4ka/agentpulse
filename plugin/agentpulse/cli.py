@@ -336,6 +336,9 @@ def cmd_status(args):
     else:
         print("❌ AgentPulse is not running")
 
+    proxy_enabled = config.get("proxy_enabled", False)
+    proxy_port = config.get("proxy_port", 8787)
+
     print(f"\n📋 Configuration:")
     print(f"   Config: {DEFAULT_CONFIG_PATH}")
     print(f"   Agent: {config.get('agent_name', 'not set')}")
@@ -343,6 +346,34 @@ def cmd_status(args):
     print(f"   Endpoint: {config.get('endpoint', 'not set')}")
     print(f"   Log path: {config.get('log_path', 'not set')}")
     print(f"   Daemon log: {LOG_FILE}")
+    print(f"   LLM Proxy: {'enabled (port {})'.format(proxy_port) if proxy_enabled else 'disabled'}")
+    if proxy_enabled:
+        print(f"\n🔌 Proxy URLs (set these in OpenClaw config):")
+        print(f"   ANTHROPIC_BASE_URL=http://127.0.0.1:{proxy_port}/anthropic")
+        print(f"   OPENAI_BASE_URL=http://127.0.0.1:{proxy_port}/minimax")
+
+def cmd_enable_proxy(args):
+    """Enable or disable the LLM proxy for prompt capture."""
+    config = load_config()
+
+    if args.disable:
+        config["proxy_enabled"] = False
+        save_config(config)
+        print("🔌 LLM proxy disabled.")
+        print("   Restart agentpulse to apply: agentpulse stop && agentpulse start -d")
+        return
+
+    port = args.port or config.get("proxy_port", 8787)
+    config["proxy_enabled"] = True
+    config["proxy_port"] = port
+    save_config(config)
+
+    print(f"🔌 LLM proxy enabled on port {port}")
+    print(f"\n   To capture prompts, configure OpenClaw's provider base URLs:")
+    print(f"   ANTHROPIC_BASE_URL=http://127.0.0.1:{port}/anthropic")
+    print(f"   OPENAI_BASE_URL=http://127.0.0.1:{port}/minimax")
+    print(f"\n   Then restart: agentpulse stop && agentpulse start -d")
+
 
 def main():
     parser = argparse.ArgumentParser(description="AgentPulse — AI Agent Observability")
@@ -358,6 +389,12 @@ def main():
     subparsers.add_parser("stop", help="Stop the daemon")
     subparsers.add_parser("status", help="Check daemon status")
     subparsers.add_parser("test", help="Send a test event to verify connection")
+    proxy_parser = subparsers.add_parser("enable-proxy",
+                                          help="Enable LLM proxy for prompt/response capture")
+    proxy_parser.add_argument("--port", type=int, default=None,
+                               help="Proxy port (default: 8787)")
+    proxy_parser.add_argument("--disable", action="store_true",
+                               help="Disable the proxy")
 
     args = parser.parse_args()
 
@@ -368,6 +405,7 @@ def main():
         "stop": cmd_stop,
         "status": cmd_status,
         "test": cmd_test,
+        "enable-proxy": cmd_enable_proxy,
     }
 
     if args.command in commands:

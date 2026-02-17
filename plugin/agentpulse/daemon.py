@@ -23,12 +23,15 @@ class AgentPulseDaemon:
         self.running = False
         self.file_positions: dict[str, int] = {}
 
-        # Per-run state: collect tool calls between prompt_end events
-        # { run_id: { "tools": set(), "errors": [] } }
+        # Per-run state: collect tool calls, model info between prompt_end events
+        # { run_id: { "tools": set(), "errors": [], "model": str, "provider": str } }
         self._runs: dict[str, dict] = {}
 
         # Default model for cost estimation (OpenClaw uses MiniMax by default)
         self._default_model = self.config.get("model", "MiniMax-M2.5")
+
+        # Proxy server (started if enabled in config)
+        self._proxy = None
 
     def get_latest_log_file(self) -> str | None:
         log_path = self.config["log_path"]
@@ -67,8 +70,19 @@ class AgentPulseDaemon:
     def _get_run(self, run_id: str) -> dict:
         """Get or create per-run tracking state."""
         if run_id not in self._runs:
-            self._runs[run_id] = {"tools": set(), "errors": []}
+            self._runs[run_id] = {
+                "tools": set(),
+                "errors": [],
+                "model": None,
+                "provider": None,
+            }
         return self._runs[run_id]
+
+    def _try_get_proxy_capture(self):
+        """Try to get the most recent unclaimed proxy capture."""
+        if not self._proxy:
+            return None
+        return self._proxy.get_latest_capture()
 
     def process_lines(self, lines: list[str]):
         """Parse OpenClaw JSON log lines and emit events."""
@@ -78,6 +92,13 @@ class AgentPulseDaemon:
                 continue
 
             event_type = parsed["type"]
+
+            # ── "run_start" = new LLM run, captures model/provider ──
+            if event_type == "run_start":
+                run = self._get_run(parsed["run_id"])
+                run["model"] = parsed["model"]
+                run["provider"] = parsed["provider"]
+                continue
 
             # ── Collect tool calls per run ──
             if event_type == "tool_start":
@@ -104,41 +125,62 @@ class AgentPulseDaemon:
                 run = self._get_run(run_id)
                 duration_ms = parsed["duration_ms"]
 
-                # Estimate tokens from duration (rough heuristic: ~50 tokens/sec output)
-                # A 120s run at 50 tok/s ≈ 6000 output tokens, with ~2x input
-                est_output = max(50, int(duration_ms / 1000 * 50))
-                est_input = max(100, est_output * 2)
+                # Use real model/provider from run_start, fall back to defaults
+                model = run.get("model") or self._default_model
+                provider = run.get("provider") or (
+                    model.split("/")[0] if "/" in model else "minimax"
+                )
 
-                model = self._default_model
-                cost = estimate_cost(model, est_input, est_output)
+                # Check proxy for captured prompt/response data
+                capture = self._try_get_proxy_capture()
+
+                if capture:
+                    # Exact data from proxy
+                    input_tokens = capture["input_tokens"]
+                    output_tokens = capture["output_tokens"]
+                    prompt_messages = capture["prompt_messages"]
+                    response_text = capture["response_text"]
+                    # Prefer proxy model if available
+                    if capture.get("model"):
+                        model = capture["model"]
+                else:
+                    # Estimate tokens from duration (rough heuristic)
+                    output_tokens = max(50, int(duration_ms / 1000 * 50))
+                    input_tokens = max(100, output_tokens * 2)
+                    prompt_messages = []
+                    response_text = None
+
+                cost = estimate_cost(model, input_tokens, output_tokens)
 
                 tools_list = sorted(run["tools"]) if run["tools"] else []
                 error_msg = "; ".join(run["errors"]) if run["errors"] else None
 
+                source = "proxy" if capture else "estimated"
+
                 event = {
                     "timestamp": parsed["timestamp"],
-                    "provider": "minimax",
+                    "provider": provider,
                     "model": model,
-                    "input_tokens": est_input,
-                    "output_tokens": est_output,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "cost_usd": round(cost, 6),
                     "latency_ms": duration_ms,
                     "status": "error" if error_msg else "success",
                     "error_message": error_msg,
                     "task_context": f"session:{parsed.get('session_id', 'unknown')}",
                     "tools_used": tools_list,
-                    "prompt_messages": [],
-                    "response_text": None,
+                    "prompt_messages": prompt_messages,
+                    "response_text": response_text,
                 }
 
                 self.sender.add_event(event)
                 logger.info(
-                    f"LLM call: {model} {duration_ms}ms ~{est_input}in/{est_output}out "
-                    f"${cost:.4f} tools={tools_list}"
+                    f"LLM call: {provider}/{model} {duration_ms}ms "
+                    f"{input_tokens}in/{output_tokens}out "
+                    f"${cost:.4f} tools={tools_list} [{source}]"
                 )
 
-                # Don't clear run state yet — more prompts may use same run
-                # But reset tools for the next prompt within this run
+                # Reset tools for the next prompt within this run
                 run["tools"] = set()
                 run["errors"] = []
                 continue
@@ -200,6 +242,25 @@ class AgentPulseDaemon:
                 logger.info(f"Error event: {parsed.get('message', '')[:80]}")
                 continue
 
+    def _start_proxy(self):
+        """Start the LLM proxy if enabled in config."""
+        if not self.config.get("proxy_enabled"):
+            return
+
+        try:
+            from .proxy import LLMProxyServer
+            port = self.config.get("proxy_port", 8787)
+            self._proxy = LLMProxyServer(port=port)
+            self._proxy.start()
+        except Exception as e:
+            logger.error(f"Failed to start proxy: {e}")
+
+    def _stop_proxy(self):
+        """Stop the LLM proxy if running."""
+        if self._proxy:
+            self._proxy.stop()
+            self._proxy = None
+
     def run(self):
         """Main daemon loop."""
         if not self.config.get("api_key"):
@@ -217,6 +278,9 @@ class AgentPulseDaemon:
         logger.info(f"Endpoint: {self.config['endpoint']}")
         logger.info(f"Poll interval: {poll_interval}s, Batch interval: {batch_interval}s")
 
+        # Start proxy if enabled
+        self._start_proxy()
+
         while self.running:
             try:
                 log_file = self.get_latest_log_file()
@@ -233,6 +297,7 @@ class AgentPulseDaemon:
             except KeyboardInterrupt:
                 logger.info("Shutting down...")
                 self.running = False
+                self._stop_proxy()
                 self.sender.flush()
                 break
             except Exception as e:
@@ -241,4 +306,5 @@ class AgentPulseDaemon:
 
     def stop(self):
         self.running = False
+        self._stop_proxy()
         self.sender.flush()
