@@ -343,7 +343,7 @@ def cmd_status(args):
     if proxy_enabled:
         print(f"\n🔌 Proxy URLs (set these in OpenClaw config):")
         print(f"   ANTHROPIC_BASE_URL=http://127.0.0.1:{proxy_port}/anthropic")
-        print(f"   OPENAI_BASE_URL=http://127.0.0.1:{proxy_port}/minimax")
+        print(f"   OPENAI_BASE_URL=http://127.0.0.1:{proxy_port}/openai")
 
 def cmd_enable_proxy(args):
     """Enable or disable the LLM proxy for prompt capture."""
@@ -364,7 +364,7 @@ def cmd_enable_proxy(args):
     print(f"🔌 LLM proxy enabled on port {port}")
     print(f"\n   To capture prompts, configure OpenClaw's provider base URLs:")
     print(f"   ANTHROPIC_BASE_URL=http://127.0.0.1:{port}/anthropic")
-    print(f"   OPENAI_BASE_URL=http://127.0.0.1:{port}/minimax")
+    print(f"   OPENAI_BASE_URL=http://127.0.0.1:{port}/openai")
     print(f"\n   Then restart: agentpulse stop && agentpulse start -d")
 
 
