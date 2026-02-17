@@ -11,7 +11,8 @@
 <p align="center">
   <a href="https://agentpulses.com">Website</a> &middot;
   <a href="https://agentpulses.com/docs">Documentation</a> &middot;
-  <a href="https://agentpulses.com/signup">Get Started Free</a>
+  <a href="https://agentpulses.com/signup">Get Started Free</a> &middot;
+  <a href="https://x.com/agentpulses">@agentpulses</a>
 </p>
 
 <p align="center">
@@ -52,8 +53,11 @@ Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) and get your
 
 ### 2. Install the plugin
 
+> **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package.
+
 ```bash
-pip install agentpulse
+# Recommended (one-liner)
+sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
 ```
 
 ### 3. Configure
@@ -67,10 +71,12 @@ This creates `~/.openclaw/agentpulse.yaml` with your API key and settings.
 ### 4. Start monitoring
 
 ```bash
-agentpulse start
+agentpulse start -d
 ```
 
-The daemon watches your agent's log files and streams events to the dashboard.
+The `-d` flag runs the daemon in the background. Use `agentpulse status` to check and `agentpulse stop` to stop.
+
+Run `agentpulse test` first to verify the connection works.
 
 ### 5. View your dashboard
 
@@ -197,5 +203,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 <p align="center">
   <strong>Built for developers who run AI agents in production.</strong>
   <br />
-  <a href="https://agentpulses.com">agentpulses.com</a>
+  <a href="https://agentpulses.com">agentpulses.com</a> &middot;
+  <a href="https://x.com/agentpulses">DM us on X</a>
 </p>
