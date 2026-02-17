@@ -36,8 +36,9 @@ AgentPulse is a **real-time monitoring and observability platform** for AI agent
 
 ## Key Features
 
-- **Real-time Cost Tracking** — Know exactly how much every LLM call costs, broken down by model, provider, and task
-- **Prompt Replay** — See the exact prompts your agent sent and responses it received (new in v0.2)
+- **Accurate Cost Tracking** — Exact per-call costs parsed directly from LLM API responses (not estimates)
+- **50+ Models Supported** — OpenAI, Anthropic, MiniMax, Google Gemini, Mistral, Cohere, DeepSeek, Grok, Llama, and more
+- **Prompt Replay** — See the exact prompts your agent sent and responses it received
 - **Error Monitoring** — Catch rate limits, API failures, and auth errors before your users notice
 - **Smart Alerts** — Get notified when costs spike, errors accumulate, or rate limits hit
 - **Model Analytics** — Compare token usage, latency, and costs across providers
@@ -81,6 +82,24 @@ Run `agentpulse test` first to verify the connection works.
 ### 5. View your dashboard
 
 Open [agentpulses.com/dashboard](https://agentpulses.com/dashboard) to see your agent's activity in real-time.
+
+## Supported Models & Providers
+
+AgentPulse extracts exact token counts and costs from API responses. Any model that returns usage data is supported automatically.
+
+| Provider | Models | Cost Tracking |
+|----------|--------|---------------|
+| Anthropic | Claude Opus 4, Sonnet 4.5, Haiku 4, and older | Exact (from API response) |
+| OpenAI | GPT-4o, GPT-4o-mini, o3, o1, GPT-4 Turbo | Exact (from API response) |
+| MiniMax | MiniMax-M2.5, MiniMax-M1, Text-02 | Exact (from API response) |
+| Google | Gemini 2.0 Flash/Pro, 1.5 Pro/Flash | Exact (from API response) |
+| Mistral | Large, Small, Codestral, Mixtral | Exact (from API response) |
+| DeepSeek | DeepSeek-R1, V3, Chat, Coder | Exact (from API response) |
+| xAI | Grok-3, Grok-2 | Exact (from API response) |
+| Cohere | Command R+, Command R | Exact (from API response) |
+| Meta | Llama 3.3, 3.1 (via any provider) | Exact (from API response) |
+| Amazon | Nova Pro, Lite, Micro | Exact (from API response) |
+| Any other | OpenAI-compatible APIs | Exact if usage field present |
 
 ## Supported Frameworks
 

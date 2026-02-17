@@ -1,14 +1,27 @@
 import os
+import json
 import time
 import glob
 import logging
 from datetime import datetime
 
 from .config import load_config
-from .parser import parse_line, parse_prompt_line, parse_usage_line, extract_tokens_from_line, estimate_cost
+from .parser import (
+    parse_line,
+    parse_prompt_line,
+    parse_usage_line,
+    parse_json_response_start,
+    extract_tokens_from_line,
+    extract_usage_from_api_response,
+    estimate_cost,
+)
 from .sender import EventSender
 
 logger = logging.getLogger("agentpulse")
+
+# Maximum number of lines to buffer for a multi-line JSON block
+MAX_JSON_LINES = 200
+
 
 class AgentPulseDaemon:
     def __init__(self, config_path: str = None):
@@ -27,6 +40,9 @@ class AgentPulseDaemon:
         self._pending_usage: dict | None = None
         # Last event sent, so we can retroactively update tokens if usage comes after
         self._last_event: dict | None = None
+        # Multi-line JSON block buffering
+        self._json_lines: list[str] = []
+        self._json_depth: int = 0
 
     def get_latest_log_file(self) -> str | None:
         log_path = self.config["log_path"]
@@ -59,13 +75,106 @@ class AgentPulseDaemon:
             logger.error(f"Error reading {filepath}: {e}")
             return []
 
+    def _process_json_block(self, json_text: str):
+        """Parse a complete JSON block (from API response logged by gateway).
+        Extracts exact token usage and updates the last event."""
+        try:
+            data = json.loads(json_text)
+        except json.JSONDecodeError:
+            logger.debug("Failed to parse JSON block from log")
+            return
+
+        usage = extract_usage_from_api_response(data)
+        if not usage:
+            return
+
+        input_tokens = usage["input_tokens"]
+        output_tokens = usage["output_tokens"]
+        api_model = usage.get("model")
+
+        logger.info(
+            f"Extracted exact usage from API response: "
+            f"{input_tokens}in/{output_tokens}out"
+            f"{' model=' + api_model if api_model else ''}"
+            f" (source: {usage.get('source', 'unknown')})"
+        )
+
+        if self._last_event:
+            # Update the last event with exact token data from the API response
+            self._last_event["input_tokens"] = input_tokens
+            self._last_event["output_tokens"] = output_tokens
+
+            # Use the model from the API response if available (more accurate)
+            model_for_cost = api_model or self._last_event.get("_full_model", self._last_event.get("model", ""))
+            cost = estimate_cost(model_for_cost, input_tokens, output_tokens)
+            self._last_event["cost_usd"] = round(cost, 6)
+            self._last_event["_needs_usage"] = False
+            self._last_event["_tokens_source"] = "api_response"
+
+            # If the API response contains a more specific model name, use it
+            if api_model and self._last_event.get("model") == "unknown":
+                provider = api_model.split("/")[0] if "/" in api_model else self._last_event.get("provider", "unknown")
+                model_name = api_model.split("/")[-1] if "/" in api_model else api_model
+                self._last_event["provider"] = provider
+                self._last_event["model"] = model_name
+
+            logger.debug(f"Updated event with exact API response data: ${cost:.6f}")
+        else:
+            # No event to attach to — store as pending usage
+            self._pending_usage = {
+                "type": "usage",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "model": api_model,
+                "source": "api_response",
+            }
+
     def process_lines(self, lines: list[str]):
-        """Parse log lines and buffer events, attaching prompt context and usage data."""
+        """Parse log lines and buffer events, attaching prompt context and usage data.
+
+        Handles:
+        1. Multi-line JSON response blocks (for exact token/cost data from API responses)
+        2. Single-line token usage lines
+        3. Prompt/response context lines
+        4. Model event lines (primary LLM call indicators)
+        """
         for line in lines:
-            # First, check if this is a token usage line (often comes after model line)
+            # ── Multi-line JSON block accumulation ──
+            if self._json_depth > 0:
+                self._json_lines.append(line.rstrip())
+                self._json_depth += line.count("{") - line.count("}")
+
+                if self._json_depth <= 0:
+                    # JSON block is complete — parse it
+                    json_text = " ".join(self._json_lines)
+                    self._process_json_block(json_text)
+                    self._json_lines = []
+                    self._json_depth = 0
+                elif len(self._json_lines) > MAX_JSON_LINES:
+                    # Safety: abandon overly long JSON blocks
+                    logger.debug(f"Abandoned JSON block after {MAX_JSON_LINES} lines")
+                    self._json_lines = []
+                    self._json_depth = 0
+                continue
+
+            # ── Check if line starts a JSON response block ──
+            json_start = parse_json_response_start(line)
+            if json_start:
+                depth = json_start.count("{") - json_start.count("}")
+                if depth > 0:
+                    # Multi-line JSON — start buffering
+                    self._json_lines = [json_start.rstrip()]
+                    self._json_depth = depth
+                    continue
+                elif depth == 0:
+                    # Single-line JSON — parse immediately
+                    self._process_json_block(json_start)
+                    # Don't continue — line may also match other patterns
+
+            # ── Check for single-line token usage ──
             usage = parse_usage_line(line)
             if usage:
-                if self._last_event and (self._last_event.get("_needs_usage")):
+                if self._last_event and self._last_event.get("_needs_usage"):
                     # Update the last event with real token data
                     self._last_event["input_tokens"] = usage["input_tokens"]
                     self._last_event["output_tokens"] = usage["output_tokens"]
@@ -73,19 +182,20 @@ class AgentPulseDaemon:
                     cost = estimate_cost(model, usage["input_tokens"], usage["output_tokens"])
                     self._last_event["cost_usd"] = round(cost, 6)
                     self._last_event["_needs_usage"] = False
+                    self._last_event["_tokens_source"] = "usage_line"
                     logger.debug(f"Updated event with real tokens: {usage['input_tokens']}in/{usage['output_tokens']}out")
                 else:
                     # Buffer usage for the next model event
                     self._pending_usage = usage
                 continue
 
-            # Try to parse as prompt/response context
+            # ── Try to parse as prompt/response context ──
             ctx = parse_prompt_line(line)
             if ctx:
                 self._context_buffer.append(ctx)
                 continue
 
-            # Then, try to parse as a model event
+            # ── Try to parse as a model event ──
             event = parse_line(line)
             if event:
                 # If we have pending usage data, apply it now
@@ -95,6 +205,7 @@ class AgentPulseDaemon:
                     model_full = event.get("provider", "") + "/" + event.get("model", "") if event.get("provider") != "unknown" else event.get("model", "")
                     cost = estimate_cost(model_full, self._pending_usage["input_tokens"], self._pending_usage["output_tokens"])
                     event["cost_usd"] = round(cost, 6)
+                    event["_tokens_source"] = self._pending_usage.get("source", "usage_line")
                     self._pending_usage = None
 
                 # Attach buffered prompt context to this event
