@@ -1,18 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  auth_failed: "GitHub authentication failed. Please try again.",
+  no_code: "No authorization code received from GitHub.",
+  exchange_failed: "Failed to complete GitHub sign-in. Please try again.",
+};
+
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const supabase = createBrowserSupabaseClient();
+
+  // Show error from OAuth callback redirect
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setError(AUTH_ERROR_MESSAGES[errorParam] || `Authentication error: ${errorParam}`);
+    }
+  }, [searchParams]);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
