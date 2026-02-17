@@ -262,6 +262,14 @@ export default function SettingsPage() {
           <h4 className="text-sm font-semibold text-[#FAFAFA] mb-3">Troubleshooting</h4>
           <div className="space-y-3">
             <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found</p>
+              <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+                <li>pip may have installed the binary to <span className="text-[#FAFAFA]">~/.local/bin/</span> which isn&apos;t in your PATH</li>
+                <li>Fix: <span className="text-[#7C3AED] font-mono">export PATH=&quot;$HOME/.local/bin:$PATH&quot;</span> (add to your <span className="text-[#FAFAFA]">~/.bashrc</span> to make permanent)</li>
+                <li>Or run directly: <span className="text-[#7C3AED] font-mono">python3 -m agentpulse.cli start</span></li>
+              </ul>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
               <p className="text-sm text-[#FAFAFA] font-medium mb-1">Dashboard shows 0 events</p>
               <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
                 <li>Run <span className="text-[#7C3AED] font-mono">agentpulse test</span> to confirm your API key and connection work</li>
