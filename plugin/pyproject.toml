@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentpulse-cli"
-version = "0.3.0"
+version = "0.3.1"
 description = "AI Agent Observability — track costs, monitor performance, optimize your agents"
 readme = "README.md"
 requires-python = ">=3.10"
