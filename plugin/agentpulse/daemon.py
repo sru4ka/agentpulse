@@ -1,26 +1,14 @@
 import os
-import json
-import time
 import glob
+import time
 import logging
 from datetime import datetime
 
 from .config import load_config
-from .parser import (
-    parse_line,
-    parse_prompt_line,
-    parse_usage_line,
-    parse_json_response_start,
-    extract_tokens_from_line,
-    extract_usage_from_api_response,
-    estimate_cost,
-)
+from .parser import parse_openclaw_line, estimate_cost
 from .sender import EventSender
 
 logger = logging.getLogger("agentpulse")
-
-# Maximum number of lines to buffer for a multi-line JSON block
-MAX_JSON_LINES = 200
 
 
 class AgentPulseDaemon:
@@ -34,21 +22,18 @@ class AgentPulseDaemon:
         )
         self.running = False
         self.file_positions: dict[str, int] = {}
-        # Buffer for collecting prompt context between model events
-        self._context_buffer: list[dict] = []
-        # Buffer for pending usage data (token counts from subsequent log lines)
-        self._pending_usage: dict | None = None
-        # Last event sent, so we can retroactively update tokens if usage comes after
-        self._last_event: dict | None = None
-        # Multi-line JSON block buffering
-        self._json_lines: list[str] = []
-        self._json_depth: int = 0
+
+        # Per-run state: collect tool calls between prompt_end events
+        # { run_id: { "tools": set(), "errors": [] } }
+        self._runs: dict[str, dict] = {}
+
+        # Default model for cost estimation (OpenClaw uses MiniMax by default)
+        self._default_model = self.config.get("model", "MiniMax-M2.5")
 
     def get_latest_log_file(self) -> str | None:
         log_path = self.config["log_path"]
         today = datetime.now().strftime("%Y-%m-%d")
 
-        # Try exact today's file first
         today_file = os.path.join(log_path, f"openclaw-{today}.log")
         if os.path.exists(today_file):
             return today_file
@@ -61,9 +46,13 @@ class AgentPulseDaemon:
     def tail_file(self, filepath: str) -> list[str]:
         """Read new lines from file since last position."""
         if filepath not in self.file_positions:
-            # Start from beginning of file so we capture existing events
-            self.file_positions[filepath] = 0
-            logger.info(f"New file discovered, reading from start: {filepath}")
+            # Start from end of file for existing files (don't re-parse old data)
+            try:
+                self.file_positions[filepath] = os.path.getsize(filepath)
+                logger.info(f"New file discovered, watching from end: {filepath}")
+            except OSError:
+                self.file_positions[filepath] = 0
+                logger.info(f"New file discovered, reading from start: {filepath}")
 
         try:
             with open(filepath, "r") as f:
@@ -75,179 +64,141 @@ class AgentPulseDaemon:
             logger.error(f"Error reading {filepath}: {e}")
             return []
 
-    def _process_json_block(self, json_text: str):
-        """Parse a complete JSON block (from API response logged by gateway).
-        Extracts exact token usage and updates the last event."""
-        try:
-            data = json.loads(json_text)
-        except json.JSONDecodeError:
-            logger.debug("Failed to parse JSON block from log")
-            return
-
-        usage = extract_usage_from_api_response(data)
-        if not usage:
-            return
-
-        input_tokens = usage["input_tokens"]
-        output_tokens = usage["output_tokens"]
-        api_model = usage.get("model")
-
-        logger.info(
-            f"Extracted exact usage from API response: "
-            f"{input_tokens}in/{output_tokens}out"
-            f"{' model=' + api_model if api_model else ''}"
-            f" (source: {usage.get('source', 'unknown')})"
-        )
-
-        if self._last_event:
-            # Update the last event with exact token data from the API response
-            self._last_event["input_tokens"] = input_tokens
-            self._last_event["output_tokens"] = output_tokens
-
-            # Use the model from the API response if available (more accurate)
-            model_for_cost = api_model or self._last_event.get("_full_model", self._last_event.get("model", ""))
-            cost = estimate_cost(model_for_cost, input_tokens, output_tokens)
-            self._last_event["cost_usd"] = round(cost, 6)
-            self._last_event["_needs_usage"] = False
-            self._last_event["_tokens_source"] = "api_response"
-
-            # If the API response contains a more specific model name, use it
-            if api_model and self._last_event.get("model") == "unknown":
-                provider = api_model.split("/")[0] if "/" in api_model else self._last_event.get("provider", "unknown")
-                model_name = api_model.split("/")[-1] if "/" in api_model else api_model
-                self._last_event["provider"] = provider
-                self._last_event["model"] = model_name
-
-            logger.debug(f"Updated event with exact API response data: ${cost:.6f}")
-        else:
-            # No event to attach to — store as pending usage
-            self._pending_usage = {
-                "type": "usage",
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "model": api_model,
-                "source": "api_response",
-            }
+    def _get_run(self, run_id: str) -> dict:
+        """Get or create per-run tracking state."""
+        if run_id not in self._runs:
+            self._runs[run_id] = {"tools": set(), "errors": []}
+        return self._runs[run_id]
 
     def process_lines(self, lines: list[str]):
-        """Parse log lines and buffer events, attaching prompt context and usage data.
-
-        Handles:
-        1. Multi-line JSON response blocks (for exact token/cost data from API responses)
-        2. Single-line token usage lines
-        3. Prompt/response context lines
-        4. Model event lines (primary LLM call indicators)
-        """
-        for line in lines:
-            # ── Multi-line JSON block accumulation ──
-            if self._json_depth > 0:
-                self._json_lines.append(line.rstrip())
-                self._json_depth += line.count("{") - line.count("}")
-
-                if self._json_depth <= 0:
-                    # JSON block is complete — parse it
-                    json_text = " ".join(self._json_lines)
-                    self._process_json_block(json_text)
-                    self._json_lines = []
-                    self._json_depth = 0
-                elif len(self._json_lines) > MAX_JSON_LINES:
-                    # Safety: abandon overly long JSON blocks
-                    logger.debug(f"Abandoned JSON block after {MAX_JSON_LINES} lines")
-                    self._json_lines = []
-                    self._json_depth = 0
+        """Parse OpenClaw JSON log lines and emit events."""
+        for raw_line in lines:
+            parsed = parse_openclaw_line(raw_line)
+            if not parsed:
                 continue
 
-            # ── Check if line starts a JSON response block ──
-            json_start = parse_json_response_start(line)
-            if json_start:
-                depth = json_start.count("{") - json_start.count("}")
-                if depth > 0:
-                    # Multi-line JSON — start buffering
-                    self._json_lines = [json_start.rstrip()]
-                    self._json_depth = depth
-                    continue
-                elif depth == 0:
-                    # Single-line JSON — parse immediately
-                    self._process_json_block(json_start)
-                    # Don't continue — line may also match other patterns
+            event_type = parsed["type"]
 
-            # ── Check for single-line token usage ──
-            usage = parse_usage_line(line)
-            if usage:
-                if self._last_event and self._last_event.get("_needs_usage"):
-                    # Update the last event with real token data
-                    self._last_event["input_tokens"] = usage["input_tokens"]
-                    self._last_event["output_tokens"] = usage["output_tokens"]
-                    model = self._last_event.get("_full_model", self._last_event.get("model", ""))
-                    cost = estimate_cost(model, usage["input_tokens"], usage["output_tokens"])
-                    self._last_event["cost_usd"] = round(cost, 6)
-                    self._last_event["_needs_usage"] = False
-                    self._last_event["_tokens_source"] = "usage_line"
-                    logger.debug(f"Updated event with real tokens: {usage['input_tokens']}in/{usage['output_tokens']}out")
-                else:
-                    # Buffer usage for the next model event
-                    self._pending_usage = usage
+            # ── Collect tool calls per run ──
+            if event_type == "tool_start":
+                run = self._get_run(parsed["run_id"])
+                tool = parsed["tool"]
+                if tool != "message":  # skip message tool (just TG output)
+                    run["tools"].add(tool)
                 continue
 
-            # ── Try to parse as prompt/response context ──
-            ctx = parse_prompt_line(line)
-            if ctx:
-                self._context_buffer.append(ctx)
+            if event_type == "tool_end":
+                continue  # nothing extra needed
+
+            # ── Collect tool errors ──
+            if event_type == "tool_error":
+                # Attach to the most recent run if we can
+                if self._runs:
+                    last_run = list(self._runs.values())[-1]
+                    last_run["errors"].append(f"{parsed['tool']}: {parsed['error']}")
                 continue
 
-            # ── Try to parse as a model event ──
-            event = parse_line(line)
-            if event:
-                # If we have pending usage data, apply it now
-                if self._pending_usage:
-                    event["input_tokens"] = self._pending_usage["input_tokens"]
-                    event["output_tokens"] = self._pending_usage["output_tokens"]
-                    model_full = event.get("provider", "") + "/" + event.get("model", "") if event.get("provider") != "unknown" else event.get("model", "")
-                    cost = estimate_cost(model_full, self._pending_usage["input_tokens"], self._pending_usage["output_tokens"])
-                    event["cost_usd"] = round(cost, 6)
-                    event["_tokens_source"] = self._pending_usage.get("source", "usage_line")
-                    self._pending_usage = None
+            # ── "prompt_end" = one LLM call completed ──
+            if event_type == "prompt_end":
+                run_id = parsed["run_id"]
+                run = self._get_run(run_id)
+                duration_ms = parsed["duration_ms"]
 
-                # Attach buffered prompt context to this event
-                prompt_messages = []
-                response_parts = []
-                tool_calls = []
+                # Estimate tokens from duration (rough heuristic: ~50 tokens/sec output)
+                # A 120s run at 50 tok/s ≈ 6000 output tokens, with ~2x input
+                est_output = max(50, int(duration_ms / 1000 * 50))
+                est_input = max(100, est_output * 2)
 
-                for item in self._context_buffer:
-                    if item["type"] == "prompt":
-                        prompt_messages.append({"role": "user", "content": item["content"]})
-                    elif item["type"] == "system_prompt":
-                        prompt_messages.append({"role": "system", "content": item["content"]})
-                    elif item["type"] == "response":
-                        response_parts.append(item["content"])
-                    elif item["type"] == "tool_call":
-                        tool_calls.append(item["tool_name"])
-                        prompt_messages.append({
-                            "role": "tool",
-                            "tool": item["tool_name"],
-                            "content": item.get("tool_args", ""),
-                        })
+                model = self._default_model
+                cost = estimate_cost(model, est_input, est_output)
 
-                event["prompt_messages"] = prompt_messages
-                event["response_text"] = "\n".join(response_parts) if response_parts else None
+                tools_list = sorted(run["tools"]) if run["tools"] else []
+                error_msg = "; ".join(run["errors"]) if run["errors"] else None
 
-                # Merge tool calls from context into tools_used
-                if tool_calls:
-                    existing_tools = event.get("tools_used", [])
-                    event["tools_used"] = list(set(existing_tools + tool_calls))
-
-                # Clear context buffer for next event
-                self._context_buffer = []
-
-                # Store full model name for cost lookup and mark if usage may follow
-                event["_full_model"] = event.get("provider", "") + "/" + event.get("model", "") if event.get("provider") != "unknown" else event.get("model", "")
-                event["_needs_usage"] = True  # Usage line might follow
-
-                # Keep reference so usage lines that follow can update this event
-                self._last_event = event
+                event = {
+                    "timestamp": parsed["timestamp"],
+                    "provider": "minimax",
+                    "model": model,
+                    "input_tokens": est_input,
+                    "output_tokens": est_output,
+                    "cost_usd": round(cost, 6),
+                    "latency_ms": duration_ms,
+                    "status": "error" if error_msg else "success",
+                    "error_message": error_msg,
+                    "task_context": f"session:{parsed.get('session_id', 'unknown')}",
+                    "tools_used": tools_list,
+                    "prompt_messages": [],
+                    "response_text": None,
+                }
 
                 self.sender.add_event(event)
-                logger.debug(f"Parsed event: {event['model']} ({event['status']}) tokens={event['input_tokens']}in/{event['output_tokens']}out cost=${event['cost_usd']} with {len(prompt_messages)} prompt messages")
+                logger.info(
+                    f"LLM call: {model} {duration_ms}ms ~{est_input}in/{est_output}out "
+                    f"${cost:.4f} tools={tools_list}"
+                )
+
+                # Don't clear run state yet — more prompts may use same run
+                # But reset tools for the next prompt within this run
+                run["tools"] = set()
+                run["errors"] = []
+                continue
+
+            # ── "run_done" = entire agent run finished ──
+            if event_type == "run_done":
+                run_id = parsed["run_id"]
+                # Clean up run state
+                self._runs.pop(run_id, None)
+                continue
+
+            # ── Usage data (if gateway ever logs it) ──
+            if event_type == "usage":
+                # Exact token data — emit directly
+                input_t = parsed.get("input_tokens", 0)
+                output_t = parsed.get("output_tokens", 0)
+                model = parsed.get("model", self._default_model)
+                cost = estimate_cost(model, input_t, output_t)
+
+                event = {
+                    "timestamp": parsed["timestamp"],
+                    "provider": model.split("/")[0] if "/" in model else "minimax",
+                    "model": model.split("/")[-1] if "/" in model else model,
+                    "input_tokens": input_t,
+                    "output_tokens": output_t,
+                    "cost_usd": round(cost, 6),
+                    "latency_ms": None,
+                    "status": "success",
+                    "error_message": None,
+                    "task_context": None,
+                    "tools_used": [],
+                    "prompt_messages": [],
+                    "response_text": None,
+                }
+
+                self.sender.add_event(event)
+                logger.info(f"Exact usage: {model} {input_t}in/{output_t}out ${cost:.4f}")
+                continue
+
+            # ── Errors ──
+            if event_type == "error":
+                event = {
+                    "timestamp": parsed["timestamp"],
+                    "provider": "openclaw",
+                    "model": self._default_model,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "cost_usd": 0,
+                    "latency_ms": None,
+                    "status": "error",
+                    "error_message": parsed.get("message", "Unknown error"),
+                    "task_context": None,
+                    "tools_used": [],
+                    "prompt_messages": [],
+                    "response_text": None,
+                }
+
+                self.sender.add_event(event)
+                logger.info(f"Error event: {parsed.get('message', '')[:80]}")
+                continue
 
     def run(self):
         """Main daemon loop."""
@@ -262,6 +213,7 @@ class AgentPulseDaemon:
         logger.info(f"AgentPulse daemon started")
         logger.info(f"Watching: {self.config['log_path']}")
         logger.info(f"Agent: {self.config['agent_name']} ({self.config['framework']})")
+        logger.info(f"Default model: {self._default_model}")
         logger.info(f"Endpoint: {self.config['endpoint']}")
         logger.info(f"Poll interval: {poll_interval}s, Batch interval: {batch_interval}s")
 
