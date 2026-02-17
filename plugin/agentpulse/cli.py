@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 
-from .config import load_config, save_config, DEFAULT_CONFIG, DEFAULT_CONFIG_PATH
+from .config import load_config, save_config, DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, detect_openclaw_log_path
 from .daemon import AgentPulseDaemon
 
 PID_FILE = "/tmp/agentpulse.pid"
@@ -47,9 +47,12 @@ def cmd_init(args):
     if endpoint:
         config["endpoint"] = endpoint
 
-    log_path = input(f"OpenClaw log path [{config.get('log_path', '/tmp/openclaw/')}]: ").strip()
+    detected_path = config.get("log_path", detect_openclaw_log_path())
+    log_path = input(f"OpenClaw log path [{detected_path}]: ").strip()
     if log_path:
         config["log_path"] = log_path
+    elif not config.get("log_path"):
+        config["log_path"] = detected_path
 
     save_config(config)
     print(f"\n✅ Config saved to {DEFAULT_CONFIG_PATH}")
