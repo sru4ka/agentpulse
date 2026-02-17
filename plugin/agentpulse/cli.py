@@ -55,9 +55,9 @@ def cmd_init(args):
     print(f"\n✅ Config saved to {DEFAULT_CONFIG_PATH}")
     print(f"   Agent: {config['agent_name']}")
     print(f"   Endpoint: {config['endpoint']}")
-    print(f"\nNow run your agent with:")
-    print(f"   agentpulse run python your_bot.py")
-    print(f"\nAll LLM calls (OpenAI, Anthropic, MiniMax, etc.) will be tracked automatically.")
+    print(f"\nStart monitoring with:")
+    print(f"   agentpulse start -d")
+    print(f"\nAll LLM calls will be tracked automatically in the background.")
 
 def cmd_run(args):
     """Run a command with automatic LLM instrumentation.
