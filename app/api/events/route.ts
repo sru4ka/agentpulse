@@ -238,6 +238,7 @@ export async function POST(request: Request) {
           ...(e.prompt_messages ? { prompt_messages: e.prompt_messages } : {}),
           ...(e.response_text ? { response_text: e.response_text } : {}),
           ...(tokensEstimated ? { tokens_estimated: true } : {}),
+          ...(e.user_id ? { user_id: e.user_id } : {}),
         },
       }
     })

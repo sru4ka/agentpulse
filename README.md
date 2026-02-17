@@ -46,42 +46,48 @@ AgentPulse is a **real-time monitoring and observability platform** for AI agent
 - **Multi-agent Support** — Monitor multiple agents from a single dashboard
 - **Mobile Responsive** — Check your agents from your phone
 
-## Quick Start
+## Quick Start (Python SDK)
 
 ### 1. Create an account
 
 Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) and get your API key from Settings.
 
-### 2. Install the plugin
+### 2. Install
 
 > **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package.
 
 ```bash
-# Recommended (one-liner)
-sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
+pip install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin"
 ```
 
-### 3. Configure
+### 3. Add 3 lines to your code
 
-```bash
-agentpulse init
+```python
+import agentpulse
+agentpulse.init(api_key="your-api-key", agent_name="my-bot")
+agentpulse.auto_instrument()
+
+# All OpenAI / Anthropic / MiniMax calls are now tracked automatically
+from openai import OpenAI
+client = OpenAI(api_key="...", base_url="https://api.minimaxi.chat/v1")  # works with any provider
+response = client.chat.completions.create(model="MiniMax-M2.5", messages=[...])
+# ^ This call is tracked with exact tokens and costs
 ```
 
-This creates `~/.openclaw/agentpulse.yaml` with your API key and settings.
-
-### 4. Start monitoring
-
-```bash
-agentpulse start -d
-```
-
-The `-d` flag runs the daemon in the background. Use `agentpulse status` to check and `agentpulse stop` to stop.
-
-Run `agentpulse test` first to verify the connection works.
-
-### 5. View your dashboard
+### 4. View your dashboard
 
 Open [agentpulses.com/dashboard](https://agentpulses.com/dashboard) to see your agent's activity in real-time.
+
+### Alternative: Daemon mode (OpenClaw only)
+
+If you're using OpenClaw, you can use the daemon instead of the SDK:
+
+```bash
+sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
+agentpulse init        # configure API key
+agentpulse test        # verify connection
+agentpulse start -d    # run in background
+```
 
 ## Supported Models & Providers
 
@@ -103,24 +109,25 @@ AgentPulse extracts exact token counts and costs from API responses. Any model t
 
 ## Supported Frameworks
 
-| Framework | Status | Notes |
-|-----------|--------|-------|
-| OpenClaw | Full support | Primary integration |
-| LangChain | Coming soon | Python SDK |
-| CrewAI | Coming soon | Python SDK |
-| AutoGen | Coming soon | Python SDK |
+| Framework | Status | Integration |
+|-----------|--------|-------------|
+| Any Python agent | Full support | Python SDK (auto-instrument) |
+| OpenClaw | Full support | SDK or Daemon |
+| LangChain | Full support | Python SDK |
+| CrewAI | Full support | Python SDK |
+| AutoGen | Full support | Python SDK |
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Your Agent  │────▶│  AgentPulse      │────▶│  AgentPulse     │
-│  (OpenClaw)  │     │  Plugin (Python) │     │  Dashboard      │
-│              │     │                  │     │  (Next.js)      │
-│  Logs LLM    │     │  Parses logs     │     │                 │
-│  calls to    │     │  Batches events  │     │  Real-time      │
-│  files       │     │  POSTs to API    │     │  charts, costs, │
-│              │     │                  │     │  prompt replay  │
+│  Your Agent  │────▶│  AgentPulse SDK  │────▶│  AgentPulse     │
+│  (any        │     │  (Python)        │     │  Dashboard      │
+│   framework) │     │                  │     │  (Next.js)      │
+│              │     │  Intercepts LLM  │     │                 │
+│  OpenAI /    │     │  SDK calls       │     │  Real-time      │
+│  Anthropic / │     │  Exact tokens    │     │  charts, costs, │
+│  MiniMax ... │     │  POSTs to API    │     │  prompt replay  │
 └─────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
@@ -128,7 +135,7 @@ AgentPulse extracts exact token counts and costs from API responses. Any model t
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4, Recharts
 - **Backend:** Next.js API routes, Supabase (PostgreSQL + Auth)
-- **Plugin:** Python 3.9+, zero dependencies (stdlib only)
+- **Plugin:** Python 3.10+, auto-instruments OpenAI & Anthropic SDKs
 - **Payments:** Stripe (credit card), Ethereum (crypto)
 - **Hosting:** Vercel
 
