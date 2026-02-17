@@ -48,17 +48,17 @@ AgentPulse is a **real-time monitoring and observability platform** for AI agent
 
 ## Quick Start
 
+SSH into your server and run:
+
 ```bash
-pip install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin"
-agentpulse init                        # paste your API key
-agentpulse run python your_bot.py      # that's it — all LLM calls tracked
+sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
+agentpulse init          # paste your API key
+agentpulse start -d      # runs in background, tracks all LLM calls
 ```
 
+That's it. Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) to get your API key, then view your dashboard at [agentpulses.com/dashboard](https://agentpulses.com/dashboard).
+
 > **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package. Always install from the git URL above.
-
-Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) to get your API key, then view your dashboard at [agentpulses.com/dashboard](https://agentpulses.com/dashboard).
-
-No code changes needed. `agentpulse run` wraps your command and automatically intercepts all OpenAI/Anthropic SDK calls — including MiniMax, Together, Groq, DeepSeek, and any OpenAI-compatible provider.
 
 ## Supported Models & Providers
 
