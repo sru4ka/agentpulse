@@ -2,58 +2,97 @@
 import { useEffect, useState, useCallback } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { useEventStream } from "@/lib/use-event-stream";
+import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import EventLog from "@/components/dashboard/event-log";
 import AgentCard from "@/components/dashboard/agent-card";
 import CostChart from "@/components/charts/cost-chart";
 import StatusChart from "@/components/charts/status-chart";
 import Recommendations from "@/components/dashboard/recommendations";
+import DateRangeSelector, { DateRange, DateRangeResult, getDateRange } from "@/components/dashboard/date-range-selector";
 import { formatCost, formatNumber } from "@/lib/utils";
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [dailyStats, setDailyStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveConnected, setLiveConnected] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
   const supabase = createBrowserSupabaseClient();
 
+  // Initial load — get agents + session
   useEffect(() => {
-    const fetchStats = async () => {
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-
       setAccessToken(session.access_token);
 
-      const res = await fetch("/api/stats", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = await res.json();
-      setStats(data);
+      const { data: agentsData } = await supabase
+        .from("agents")
+        .select("*")
+        .order("last_seen", { ascending: false });
+
+      setAgents(agentsData || []);
+    };
+    init();
+  }, []);
+
+  // Fetch events + daily_stats when date range changes
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      const agentIds = agents.map((a) => a.id);
+
+      if (agentIds.length === 0) {
+        setEvents([]);
+        setDailyStats([]);
+        setLoading(false);
+        return;
+      }
+
+      const fromTs = dateRange.from + "T00:00:00";
+      const toTs = dateRange.to + "T23:59:59";
+
+      const [eventsRes, statsRes] = await Promise.all([
+        supabase
+          .from("events")
+          .select("*")
+          .in("agent_id", agentIds)
+          .gte("timestamp", fromTs)
+          .lte("timestamp", toTs)
+          .order("timestamp", { ascending: false })
+          .limit(200),
+        supabase
+          .from("daily_stats")
+          .select("*")
+          .in("agent_id", agentIds)
+          .gte("date", dateRange.from)
+          .lte("date", dateRange.to)
+          .order("date", { ascending: true }),
+      ]);
+
+      setEvents(eventsRes.data || []);
+      setDailyStats(statsRes.data || []);
       setLoading(false);
     };
-    fetchStats();
-  }, []);
+
+    fetchData();
+  }, [accessToken, agents, dateRange]);
 
   // Real-time updates via SSE
   const onEvents = useCallback((newEvents: any[]) => {
-    setStats((prev: any) => {
-      if (!prev) return prev;
-      // Prepend new events to recent_events (dedup by id)
-      const existingIds = new Set((prev.recent_events || []).map((e: any) => e.id));
+    setEvents((prev) => {
+      const existingIds = new Set(prev.map((e: any) => e.id));
       const fresh = newEvents.filter((e) => !existingIds.has(e.id));
-      return {
-        ...prev,
-        recent_events: [...fresh, ...(prev.recent_events || [])].slice(0, 50),
-      };
+      return [...fresh, ...prev].slice(0, 200);
     });
   }, []);
 
-  const onStats = useCallback((todayStats: { cost: number; tokens: number; events: number; errors: number }) => {
-    setStats((prev: any) => {
-      if (!prev) return prev;
-      return { ...prev, today: todayStats };
-    });
-  }, []);
+  const onStats = useCallback(() => {}, []);
 
   useEventStream(accessToken, {
     onEvents,
@@ -62,7 +101,36 @@ export default function DashboardPage() {
     onDisconnect: () => setLiveConnected(false),
   });
 
-  if (loading) {
+  // Calculate stats from events using correct pricing
+  const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
+  const totalTokens = events.reduce((s, e) => s + (e.total_tokens || e.input_tokens || 0) + (e.output_tokens || 0), 0);
+  const totalEvents = events.length;
+  const totalErrors = events.filter((e) => e.status === "error" || e.status === "rate_limit").length;
+
+  const errorRate = totalEvents > 0 ? ((totalErrors / totalEvents) * 100).toFixed(1) + "%" : "0%";
+
+  // Chart data from daily_stats (for trend)
+  const costChartData = dailyStats.map((s: any) => ({
+    date: s.date,
+    cost: parseFloat(s.total_cost_usd || 0),
+  }));
+
+  const totalSuccess = dailyStats.reduce((s: number, d: any) => s + (d.success_count || 0), 0);
+  const totalDailyErrors = dailyStats.reduce((s: number, d: any) => s + (d.error_count || 0), 0);
+  const totalRateLimits = dailyStats.reduce((s: number, d: any) => s + (d.rate_limit_count || 0), 0);
+  const statusData = [
+    { name: "Success", value: totalSuccess || 1, color: "#10B981" },
+    { name: "Errors", value: totalDailyErrors, color: "#EF4444" },
+    { name: "Rate Limited", value: totalRateLimits, color: "#F59E0B" },
+  ].filter((d) => d.value > 0);
+
+  // Per-agent costs from events (accurate)
+  const agentCosts: Record<string, number> = {};
+  events.forEach((e) => {
+    agentCosts[e.agent_id] = (agentCosts[e.agent_id] || 0) + recalculateEventCost(e);
+  });
+
+  if (loading && agents.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Dashboard</h1>
@@ -76,37 +144,9 @@ export default function DashboardPage() {
     );
   }
 
-  // Prepare chart data from daily_stats
-  const costChartData = (stats?.daily_stats || []).map((s: any) => ({
-    date: s.date,
-    cost: parseFloat(s.total_cost_usd || 0),
-  }));
-
-  const totalSuccess = (stats?.daily_stats || []).reduce((s: number, d: any) => s + (d.success_count || 0), 0);
-  const totalErrors = (stats?.daily_stats || []).reduce((s: number, d: any) => s + (d.error_count || 0), 0);
-  const totalRateLimits = (stats?.daily_stats || []).reduce((s: number, d: any) => s + (d.rate_limit_count || 0), 0);
-
-  const statusData = [
-    { name: "Success", value: totalSuccess || 1, color: "#10B981" },
-    { name: "Errors", value: totalErrors, color: "#EF4444" },
-    { name: "Rate Limited", value: totalRateLimits, color: "#F59E0B" },
-  ].filter(d => d.value > 0);
-
-  // Show all-time stats when today has no data, so the user always sees their numbers
-  const hasToday = (stats?.today?.events || 0) > 0;
-  const displayCost = hasToday ? stats.today.cost : (stats?.total?.cost || 0);
-  const displayTokens = hasToday ? stats.today.tokens : (stats?.total?.tokens || 0);
-  const displayEvents = hasToday ? stats.today.events : (stats?.total?.events || 0);
-  const displayErrors = hasToday ? stats.today.errors : (stats?.total?.errors || 0);
-  const periodLabel = hasToday ? "today" : "all time";
-
-  const errorRate = displayEvents > 0
-    ? ((displayErrors / displayEvents) * 100).toFixed(1) + "%"
-    : "0%";
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-[#FAFAFA]">Dashboard</h1>
           {liveConnected && (
@@ -116,15 +156,15 @@ export default function DashboardPage() {
             </span>
           )}
         </div>
-        <p className="text-sm text-[#A1A1AA]">{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+        <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title={hasToday ? "Today's Cost" : "Total Cost"} value={formatCost(displayCost)} subtitle={`USD spent ${periodLabel}`} />
-        <StatCard title="Total Tokens" value={formatNumber(displayTokens)} subtitle={`tokens used ${periodLabel}`} />
-        <StatCard title="API Calls" value={formatNumber(displayEvents)} subtitle={`calls ${periodLabel}`} />
-        <StatCard title="Error Rate" value={errorRate} subtitle={`of calls failed ${periodLabel}`} />
+        <StatCard title="Cost" value={formatCost(totalCost)} subtitle={dateRange.label} />
+        <StatCard title="Tokens" value={formatNumber(totalTokens)} subtitle={dateRange.label} />
+        <StatCard title="API Calls" value={formatNumber(totalEvents)} subtitle={dateRange.label} />
+        <StatCard title="Error Rate" value={errorRate} subtitle={`${totalErrors} errors`} />
       </div>
 
       {/* Cost chart */}
@@ -136,33 +176,33 @@ export default function DashboardPage() {
           <StatusChart data={statusData} />
         </div>
         <div className="lg:col-span-2">
-          <EventLog events={stats?.recent_events || []} />
+          <EventLog events={events.slice(0, 20)} />
         </div>
       </div>
 
       {/* Recommendations */}
-      <Recommendations events={stats?.recent_events || []} dailyStats={stats?.daily_stats || []} />
+      <Recommendations events={events} dailyStats={dailyStats} />
 
       {/* Agents */}
-      {stats?.agents?.length > 0 && (
+      {agents.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-[#FAFAFA] mb-4">Active Agents</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats.agents.map((agent: any) => (
-              <AgentCard key={agent.id} agent={agent} todayCost={stats?.agent_today_costs?.[agent.id] || 0} />
+            {agents.map((agent: any) => (
+              <AgentCard key={agent.id} agent={agent} todayCost={agentCosts[agent.id] || 0} />
             ))}
           </div>
         </div>
       )}
 
       {/* Empty state */}
-      {(!stats?.agents || stats.agents.length === 0) && (
+      {agents.length === 0 && (
         <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-12 text-center">
           <div className="text-4xl mb-4">📡</div>
           <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">No agents connected yet</h3>
           <p className="text-[#A1A1AA] mb-6">Install the AgentPulse plugin on your server to start tracking.</p>
           <code className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-4 py-2 text-sm text-[#7C3AED]">
-            pip install agentpulse
+            agentpulse init
           </code>
         </div>
       )}

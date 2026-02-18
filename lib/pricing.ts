@@ -47,3 +47,33 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
   if (!pricing) return 0
   return (inputTokens / 1_000_000) * pricing.inputPerMillion + (outputTokens / 1_000_000) * pricing.outputPerMillion
 }
+
+/**
+ * Recalculate cost for an event using current correct pricing.
+ * Falls back to stored cost_usd if model not in pricing table.
+ */
+export function recalculateEventCost(event: {
+  model?: string
+  provider?: string
+  input_tokens?: number
+  output_tokens?: number
+  cost_usd?: number | string
+}): number {
+  const inputTokens = event.input_tokens || 0
+  const outputTokens = event.output_tokens || 0
+
+  if (inputTokens > 0 || outputTokens > 0) {
+    // Try provider/model key first
+    if (event.provider && event.model) {
+      const cost = calculateCost(`${event.provider}/${event.model}`, inputTokens, outputTokens)
+      if (cost > 0) return cost
+    }
+    // Try just model name
+    if (event.model) {
+      const cost = calculateCost(event.model, inputTokens, outputTokens)
+      if (cost > 0) return cost
+    }
+  }
+
+  return parseFloat(String(event.cost_usd || 0))
+}

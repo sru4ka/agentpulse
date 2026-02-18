@@ -2,12 +2,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import CostChart from "@/components/charts/cost-chart";
 import TokenChart from "@/components/charts/token-chart";
 import StatusChart from "@/components/charts/status-chart";
 import EventLog from "@/components/dashboard/event-log";
 import Recommendations from "@/components/dashboard/recommendations";
+import DateRangeSelector, { DateRangeResult, getDateRange } from "@/components/dashboard/date-range-selector";
 import { formatCost, formatNumber, formatLatency } from "@/lib/utils";
 
 export default function AgentDetailPage() {
@@ -19,12 +21,13 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [eventsPage, setEventsPage] = useState(0);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("30d"));
   const supabase = createBrowserSupabaseClient();
 
   const PAGE_SIZE = 100;
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchAgent = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -34,39 +37,60 @@ export default function AgentDetailPage() {
         .eq("id", agentId)
         .single();
 
-      // Fetch more events for deeper analysis
-      const { data: eventsData } = await supabase
-        .from("events")
-        .select("*")
-        .eq("agent_id", agentId)
-        .order("timestamp", { ascending: false })
-        .range(0, PAGE_SIZE - 1);
-
-      const { data: statsData } = await supabase
-        .from("daily_stats")
-        .select("*")
-        .eq("agent_id", agentId)
-        .order("date", { ascending: true })
-        .limit(90);
-
       setAgent(agentData);
-      setEvents(eventsData || []);
-      setDailyStats(statsData || []);
-      setHasMore((eventsData || []).length >= PAGE_SIZE);
       setLoading(false);
     };
-    fetchData();
+    fetchAgent();
   }, [agentId]);
+
+  // Fetch events + daily_stats when date range changes
+  useEffect(() => {
+    if (!agent) return;
+
+    const fetchData = async () => {
+      const fromTs = dateRange.from + "T00:00:00";
+      const toTs = dateRange.to + "T23:59:59";
+
+      const [eventsRes, statsRes] = await Promise.all([
+        supabase
+          .from("events")
+          .select("*")
+          .eq("agent_id", agentId)
+          .gte("timestamp", fromTs)
+          .lte("timestamp", toTs)
+          .order("timestamp", { ascending: false })
+          .range(0, PAGE_SIZE - 1),
+        supabase
+          .from("daily_stats")
+          .select("*")
+          .eq("agent_id", agentId)
+          .gte("date", dateRange.from)
+          .lte("date", dateRange.to)
+          .order("date", { ascending: true }),
+      ]);
+
+      setEvents(eventsRes.data || []);
+      setDailyStats(statsRes.data || []);
+      setHasMore((eventsRes.data || []).length >= PAGE_SIZE);
+      setEventsPage(0);
+    };
+    fetchData();
+  }, [agent, agentId, dateRange]);
 
   const loadMoreEvents = async () => {
     const nextPage = eventsPage + 1;
     const from = nextPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    const fromTs = dateRange.from + "T00:00:00";
+    const toTs = dateRange.to + "T23:59:59";
+
     const { data: moreEvents } = await supabase
       .from("events")
       .select("*")
       .eq("agent_id", agentId)
+      .gte("timestamp", fromTs)
+      .lte("timestamp", toTs)
       .order("timestamp", { ascending: false })
       .range(from, to);
 
@@ -96,49 +120,48 @@ export default function AgentDetailPage() {
     return <div className="text-[#A1A1AA]">Agent not found.</div>;
   }
 
-  // --- Aggregate stats ---
-  const totalCost = dailyStats.reduce((s, d) => s + parseFloat(d.total_cost_usd || 0), 0);
-  const totalEvents = dailyStats.reduce((s, d) => s + (d.total_events || 0), 0);
-  const totalSuccess = dailyStats.reduce((s, d) => s + (d.success_count || 0), 0);
-  const totalErrors = dailyStats.reduce((s, d) => s + (d.error_count || 0), 0);
-  const totalRateLimits = dailyStats.reduce((s, d) => s + (d.rate_limit_count || 0), 0);
+  // --- Aggregate stats from events with recalculated costs ---
+  const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
+  const totalEvents = events.length;
+  const totalSuccess = events.filter((e) => e.status === "success").length;
+  const totalErrors = events.filter((e) => e.status === "error").length;
   const successRate = totalEvents > 0 ? ((totalSuccess / totalEvents) * 100).toFixed(1) : "0";
   const avgLatency = events.length > 0
     ? Math.round(events.reduce((s, e) => s + (e.latency_ms || 0), 0) / events.length)
     : 0;
 
   // --- Chart data ---
-  const costChartData = dailyStats.map(s => ({ date: s.date, cost: parseFloat(s.total_cost_usd || 0) }));
+  const costChartData = dailyStats.map((s) => ({ date: s.date, cost: parseFloat(s.total_cost_usd || 0) }));
 
   const statusData = [
     { name: "Success", value: totalSuccess || 0, color: "#10B981" },
     { name: "Errors", value: totalErrors, color: "#EF4444" },
-    { name: "Rate Limited", value: totalRateLimits, color: "#F59E0B" },
-  ].filter(d => d.value > 0);
+    { name: "Rate Limited", value: events.filter((e) => e.status === "rate_limit").length, color: "#F59E0B" },
+  ].filter((d) => d.value > 0);
 
-  // --- Model breakdown ---
+  // --- Model breakdown with recalculated costs ---
   const modelStats: Record<string, { calls: number; tokens: number; cost: number; inputTokens: number; outputTokens: number }> = {};
-  events.forEach(e => {
+  events.forEach((e) => {
     const key = `${e.provider}/${e.model}`;
     if (!modelStats[key]) modelStats[key] = { calls: 0, tokens: 0, cost: 0, inputTokens: 0, outputTokens: 0 };
     modelStats[key].calls++;
     modelStats[key].tokens += (e.total_tokens || 0);
-    modelStats[key].cost += parseFloat(e.cost_usd || 0);
+    modelStats[key].cost += recalculateEventCost(e);
     modelStats[key].inputTokens += (e.input_tokens || 0);
     modelStats[key].outputTokens += (e.output_tokens || 0);
   });
   const modelBreakdown = Object.entries(modelStats)
     .map(([model, data]) => ({ model, ...data }))
     .sort((a, b) => b.cost - a.cost);
-  const tokenChartData = modelBreakdown.map(m => ({ model: m.model, tokens: m.tokens }));
+  const tokenChartData = modelBreakdown.map((m) => ({ model: m.model, tokens: m.tokens }));
 
   // --- Task breakdown ---
   const taskStats: Record<string, { calls: number; cost: number; errors: number }> = {};
-  events.forEach(e => {
+  events.forEach((e) => {
     const task = e.task_context || "unknown";
     if (!taskStats[task]) taskStats[task] = { calls: 0, cost: 0, errors: 0 };
     taskStats[task].calls++;
-    taskStats[task].cost += parseFloat(e.cost_usd || 0);
+    taskStats[task].cost += recalculateEventCost(e);
     if (e.status === "error" || e.status === "rate_limit") taskStats[task].errors++;
   });
   const taskBreakdown = Object.entries(taskStats)
@@ -146,12 +169,12 @@ export default function AgentDetailPage() {
     .sort((a, b) => b.cost - a.cost);
 
   // --- Error events ---
-  const errorEvents = events.filter(e => e.status !== "success");
+  const errorEvents = events.filter((e) => e.status !== "success");
 
   return (
     <div className="space-y-6">
       {/* Agent header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-[#FAFAFA]">{agent.name}</h1>
           <div className="flex items-center gap-3 mt-1">
@@ -167,12 +190,13 @@ export default function AgentDetailPage() {
             )}
           </div>
         </div>
+        <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Cost" value={formatCost(totalCost)} subtitle="all time" />
-        <StatCard title="Total Events" value={formatNumber(totalEvents)} subtitle="API calls" />
+        <StatCard title="Total Cost" value={formatCost(totalCost)} subtitle={dateRange.label} />
+        <StatCard title="Total Events" value={formatNumber(totalEvents)} subtitle={dateRange.label} />
         <StatCard title="Success Rate" value={`${successRate}%`} subtitle="of calls succeeded" />
         <StatCard title="Avg Latency" value={formatLatency(avgLatency)} subtitle="per call" />
       </div>

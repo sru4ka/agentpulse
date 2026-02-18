@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import CostChart from "@/components/charts/cost-chart";
 import TokenChart from "@/components/charts/token-chart";
 import StatusChart from "@/components/charts/status-chart";
 import Recommendations from "@/components/dashboard/recommendations";
+import DateRangeSelector, { DateRangeResult, getDateRange } from "@/components/dashboard/date-range-selector";
 import { formatCost, formatNumber } from "@/lib/utils";
 
 export default function CostsPage() {
@@ -14,6 +16,7 @@ export default function CostsPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [dailyStats, setDailyStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("30d"));
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
@@ -52,29 +55,37 @@ export default function CostsPage() {
         ? agents.map((a) => a.id)
         : [selectedAgent];
 
-      const { data: eventsData } = await supabase
-        .from("events")
-        .select("*")
-        .in("agent_id", targetAgentIds)
-        .order("timestamp", { ascending: false })
-        .range(0, 199);
+      const fromTs = dateRange.from + "T00:00:00";
+      const toTs = dateRange.to + "T23:59:59";
 
-      const { data: statsData } = await supabase
-        .from("daily_stats")
-        .select("*")
-        .in("agent_id", targetAgentIds)
-        .order("date", { ascending: true })
-        .limit(90);
+      const [eventsRes, statsRes] = await Promise.all([
+        supabase
+          .from("events")
+          .select("*")
+          .in("agent_id", targetAgentIds)
+          .gte("timestamp", fromTs)
+          .lte("timestamp", toTs)
+          .order("timestamp", { ascending: false })
+          .range(0, 499),
+        supabase
+          .from("daily_stats")
+          .select("*")
+          .in("agent_id", targetAgentIds)
+          .gte("date", dateRange.from)
+          .lte("date", dateRange.to)
+          .order("date", { ascending: true }),
+      ]);
 
-      setEvents(eventsData || []);
-      setDailyStats(statsData || []);
+      setEvents(eventsRes.data || []);
+      setDailyStats(statsRes.data || []);
     };
     fetchAgentData();
-  }, [selectedAgent, agents]);
+  }, [selectedAgent, agents, dateRange]);
 
-  const totalCost30d = dailyStats.reduce((s: number, d: any) => s + parseFloat(d.total_cost_usd || 0), 0);
-  const daysWithData = dailyStats.length || 1;
-  const dailyAvg = totalCost30d / daysWithData;
+  // Recalculate costs from events (accurate)
+  const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
+  const daysInRange = Math.max(1, Math.round((new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) / 86400000) + 1);
+  const dailyAvg = totalCost / daysInRange;
   const projectedMonthly = dailyAvg * 30;
 
   const costChartData = dailyStats.map((s: any) => ({
@@ -96,7 +107,7 @@ export default function CostsPage() {
     const key = e.model || "unknown";
     if (!modelStats[key]) modelStats[key] = { calls: 0, cost: 0, tokens: 0, inputTokens: 0, outputTokens: 0 };
     modelStats[key].calls++;
-    modelStats[key].cost += parseFloat(e.cost_usd || 0);
+    modelStats[key].cost += recalculateEventCost(e);
     modelStats[key].tokens += e.total_tokens || 0;
     modelStats[key].inputTokens += e.input_tokens || 0;
     modelStats[key].outputTokens += e.output_tokens || 0;
@@ -121,25 +132,28 @@ export default function CostsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Cost Analysis</h1>
-        {agents.length > 1 && (
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-4 py-2 text-[#FAFAFA] text-sm focus:outline-none focus:border-[#7C3AED] appearance-none pr-8"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
-          >
-            <option value="all">All Agents</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
+          {agents.length > 1 && (
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-4 py-2 text-[#FAFAFA] text-sm focus:outline-none focus:border-[#7C3AED] appearance-none pr-8"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+            >
+              <option value="all">All Agents</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Total (30 days)" value={formatCost(totalCost30d)} subtitle="last 30 days" />
+        <StatCard title="Total Cost" value={formatCost(totalCost)} subtitle={dateRange.label} />
         <StatCard title="Daily Average" value={formatCost(dailyAvg)} subtitle="per day" />
         <StatCard title="Projected Monthly" value={formatCost(projectedMonthly)} subtitle="at current rate" />
       </div>
@@ -164,6 +178,7 @@ export default function CostsPage() {
             <thead>
               <tr className="text-[#A1A1AA] border-b border-[#2A2A2D]">
                 <th className="text-left pb-3">Model</th>
+                <th className="text-right pb-3">Calls</th>
                 <th className="text-right pb-3">Tokens</th>
                 <th className="text-right pb-3">Cost</th>
                 <th className="text-right pb-3">% of Total</th>
@@ -173,10 +188,11 @@ export default function CostsPage() {
               {modelBreakdown.map((m) => (
                 <tr key={m.model} className="border-b border-[#2A2A2D]/50">
                   <td className="py-3 text-[#FAFAFA]">{m.model}</td>
+                  <td className="py-3 text-right text-[#A1A1AA]">{formatNumber(m.calls)}</td>
                   <td className="py-3 text-right text-[#A1A1AA]">{formatNumber(m.tokens)}</td>
                   <td className="py-3 text-right text-[#FAFAFA]">{formatCost(m.cost)}</td>
                   <td className="py-3 text-right text-[#A1A1AA]">
-                    {totalCost30d > 0 ? ((m.cost / totalCost30d) * 100).toFixed(1) : "0"}%
+                    {totalCost > 0 ? ((m.cost / totalCost) * 100).toFixed(1) : "0"}%
                   </td>
                 </tr>
               ))}
@@ -184,7 +200,6 @@ export default function CostsPage() {
           </table>
         </div>
       )}
-
     </div>
   );
 }

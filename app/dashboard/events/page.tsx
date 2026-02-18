@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import EventLog from "@/components/dashboard/event-log";
+import DateRangeSelector, { DateRangeResult, getDateRange } from "@/components/dashboard/date-range-selector";
 import { formatCost, formatNumber } from "@/lib/utils";
 
 export default function EventsPage() {
@@ -12,6 +14,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
   const supabase = createBrowserSupabaseClient();
 
   const PAGE_SIZE = 100;
@@ -54,10 +57,15 @@ export default function EventsPage() {
         ? agents.map((a) => a.id)
         : [selectedAgent];
 
+      const fromTs = dateRange.from + "T00:00:00";
+      const toTs = dateRange.to + "T23:59:59";
+
       const { data: eventsData } = await supabase
         .from("events")
         .select("*")
         .in("agent_id", targetAgentIds)
+        .gte("timestamp", fromTs)
+        .lte("timestamp", toTs)
         .order("timestamp", { ascending: false })
         .range(0, PAGE_SIZE - 1);
 
@@ -65,7 +73,7 @@ export default function EventsPage() {
       setHasMore((eventsData || []).length >= PAGE_SIZE);
     };
     fetchEvents();
-  }, [selectedAgent, agents]);
+  }, [selectedAgent, agents, dateRange]);
 
   const loadMore = async () => {
     const nextPage = page + 1;
@@ -76,10 +84,15 @@ export default function EventsPage() {
       ? agents.map((a) => a.id)
       : [selectedAgent];
 
+    const fromTs = dateRange.from + "T00:00:00";
+    const toTs = dateRange.to + "T23:59:59";
+
     const { data: moreEvents } = await supabase
       .from("events")
       .select("*")
       .in("agent_id", targetAgentIds)
+      .gte("timestamp", fromTs)
+      .lte("timestamp", toTs)
       .order("timestamp", { ascending: false })
       .range(from, to);
 
@@ -92,18 +105,18 @@ export default function EventsPage() {
     }
   };
 
-  const totalCost = events.reduce((s, e) => s + parseFloat(e.cost_usd || 0), 0);
+  const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
   const totalTokens = events.reduce((s, e) => s + (e.total_tokens || 0), 0);
   const errorCount = events.filter((e) => e.status === "error" || e.status === "rate_limit").length;
   const errorRate = events.length > 0 ? ((errorCount / events.length) * 100).toFixed(1) : "0";
 
-  // Model breakdown
+  // Model breakdown with recalculated costs
   const modelStats: Record<string, { calls: number; cost: number; inputTokens: number; outputTokens: number }> = {};
   events.forEach((e) => {
     const key = e.model || "unknown";
     if (!modelStats[key]) modelStats[key] = { calls: 0, cost: 0, inputTokens: 0, outputTokens: 0 };
     modelStats[key].calls++;
-    modelStats[key].cost += parseFloat(e.cost_usd || 0);
+    modelStats[key].cost += recalculateEventCost(e);
     modelStats[key].inputTokens += e.input_tokens || 0;
     modelStats[key].outputTokens += e.output_tokens || 0;
   });
@@ -126,26 +139,29 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Events</h1>
-        {agents.length > 1 && (
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-4 py-2 text-[#FAFAFA] text-sm focus:outline-none focus:border-[#7C3AED] appearance-none pr-8"
-            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
-          >
-            <option value="all">All Agents</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
+          {agents.length > 1 && (
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-4 py-2 text-[#FAFAFA] text-sm focus:outline-none focus:border-[#7C3AED] appearance-none pr-8"
+              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+            >
+              <option value="all">All Agents</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Events" value={formatNumber(events.length)} subtitle="loaded" />
-        <StatCard title="Total Cost" value={formatCost(totalCost)} subtitle="from loaded events" />
+        <StatCard title="Total Events" value={formatNumber(events.length)} subtitle={dateRange.label} />
+        <StatCard title="Total Cost" value={formatCost(totalCost)} subtitle={dateRange.label} />
         <StatCard title="Total Tokens" value={formatNumber(totalTokens)} subtitle="in + out" />
         <StatCard title="Error Rate" value={`${errorRate}%`} subtitle={`${errorCount} errors`} />
       </div>
@@ -198,8 +214,8 @@ export default function EventsPage() {
 
       {events.length === 0 && (
         <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-12 text-center">
-          <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">No events yet</h3>
-          <p className="text-[#A1A1AA]">Events will appear here once your agents start making API calls.</p>
+          <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">No events in this period</h3>
+          <p className="text-[#A1A1AA]">Try selecting a different date range.</p>
         </div>
       )}
     </div>
