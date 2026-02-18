@@ -11,10 +11,10 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'minimax/MiniMax-M2.5': {
     provider: 'minimax',
     model: 'MiniMax-M2.5',
-    inputPerMillion: 1,
-    outputPerMillion: 5,
-    cacheReadPerMillion: 0.10,
-    cacheWritePerMillion: 0.50,
+    inputPerMillion: 0.30,
+    outputPerMillion: 1.20,
+    cacheReadPerMillion: 0.03,
+    cacheWritePerMillion: 0.15,
   },
   'anthropic/claude-sonnet-4-5': {
     provider: 'anthropic',
