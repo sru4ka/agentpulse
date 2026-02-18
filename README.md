@@ -53,10 +53,14 @@ SSH into your server and run:
 ```bash
 sudo apt install -y pipx && pipx install "git+https://github.com/sru4ka/agentpulse.git#subdirectory=plugin" && pipx ensurepath && source ~/.bashrc
 agentpulse init          # paste your API key
+agentpulse enable-proxy  # enables prompt & response capture
 agentpulse start -d      # runs in background, tracks all LLM calls
+source ~/.bashrc         # loads proxy env vars into current shell
 ```
 
 That's it. Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) to get your API key, then view your dashboard at [agentpulses.com/dashboard](https://agentpulses.com/dashboard).
+
+> **Prompt capture:** The `enable-proxy` step sets up a local proxy (port 8787) that captures exact prompts and responses. Without it, you only get token counts and costs. After enabling, restart agentpulse and run `source ~/.bashrc` in any open terminals.
 
 > **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package. Always install from the git URL above.
 

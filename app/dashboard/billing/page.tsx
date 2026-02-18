@@ -26,26 +26,6 @@ const PLAN_DETAILS: Record<string, { name: string; color: string; features: stri
   },
 };
 
-const STRIPE_PLANS = [
-  {
-    id: "pro_monthly",
-    name: "Pro",
-    price: 29,
-    interval: "month",
-    color: "#7C3AED",
-    features: ["5 agents", "90 days history", "Smart alerts", "Prompt replay"],
-    popular: true,
-  },
-  {
-    id: "team_monthly",
-    name: "Team",
-    price: 99,
-    interval: "month",
-    color: "#F59E0B",
-    features: ["25 agents", "1 year history", "Team dashboard", "Webhooks"],
-    popular: false,
-  },
-];
 
 function CreditCardIcon() {
   return (
@@ -56,105 +36,22 @@ function CreditCardIcon() {
   );
 }
 
-function StripeCheckoutButton({ selectedPlan, onCancel }: { selectedPlan: typeof STRIPE_PLANS[0]; onCancel: () => void }) {
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState("");
-  const supabase = createBrowserSupabaseClient();
-
-  const handleCheckout = async () => {
-    setError("");
-    setProcessing(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError("Please sign in to continue.");
-        setProcessing(false);
-        return;
-      }
-
-      const res = await fetch("/api/payments/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ plan_id: selectedPlan.id }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Failed to start checkout.");
-        setProcessing(false);
-        return;
-      }
-
-      // Redirect to Stripe Checkout
-      window.location.href = data.url;
-    } catch {
-      setError("Something went wrong. Please try again.");
-      setProcessing(false);
-    }
-  };
-
+function StripeComingSoon() {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm font-medium text-[#FAFAFA]">
-          Subscribe to {selectedPlan.name} — ${selectedPlan.price}/{selectedPlan.interval}
-        </h4>
-        <button type="button" onClick={onCancel} className="text-xs text-[#A1A1AA] hover:text-[#FAFAFA] transition">
-          Cancel
-        </button>
+    <div className="text-center py-6">
+      <div className="w-14 h-14 bg-[#7C3AED]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <CreditCardIcon />
       </div>
-
-      <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4">
-        <ul className="space-y-1.5 mb-4">
-          {selectedPlan.features.map((f) => (
-            <li key={f} className="text-sm text-[#A1A1AA] flex items-center gap-2">
-              <span className="text-[#10B981]">&#10003;</span> {f}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {error && (
-        <div className="bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-lg p-3">
-          <p className="text-xs text-[#EF4444]">{error}</p>
-        </div>
-      )}
-
-      <button
-        onClick={handleCheckout}
-        disabled={processing}
-        className="w-full bg-[#7C3AED] hover:bg-[#8B5CF6] disabled:bg-[#7C3AED]/50 disabled:cursor-not-allowed text-white py-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
-      >
-        {processing ? (
-          <>
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Redirecting to Stripe...
-          </>
-        ) : (
-          <>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0110 0v4" />
-            </svg>
-            Continue to Checkout — ${selectedPlan.price}/{selectedPlan.interval}
-          </>
-        )}
-      </button>
-
-      <div className="flex items-center justify-center gap-2 text-[10px] text-[#A1A1AA]">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0110 0v4" />
+      <h4 className="text-sm font-semibold text-[#FAFAFA] mb-2">Credit Card Payments Coming Soon</h4>
+      <p className="text-xs text-[#A1A1AA] max-w-sm mx-auto mb-4">
+        We&apos;re waiting for Stripe approval to enable credit card payments. In the meantime, you can upgrade instantly using crypto (ETH).
+      </p>
+      <div className="inline-flex items-center gap-2 bg-[#F59E0B]/5 border border-[#F59E0B]/20 text-[#F59E0B] px-4 py-2 rounded-lg text-xs font-medium">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
         </svg>
-        Secured by Stripe. You&apos;ll be redirected to complete payment.
+        Awaiting Stripe approval
       </div>
     </div>
   );
@@ -165,7 +62,6 @@ export default function BillingPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "crypto">("card");
-  const [selectedStripePlan, setSelectedStripePlan] = useState<typeof STRIPE_PLANS[0] | null>(null);
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
@@ -240,7 +136,7 @@ export default function BillingPage() {
           {/* Payment Method Toggle */}
           <div className="flex items-center gap-1 bg-[#0A0A0B] rounded-lg p-1 mb-6">
             <button
-              onClick={() => { setPaymentMethod("card"); setSelectedStripePlan(null); }}
+              onClick={() => setPaymentMethod("card")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition ${
                 paymentMethod === "card"
                   ? "bg-[#7C3AED] text-white"
@@ -251,7 +147,7 @@ export default function BillingPage() {
               Credit Card
             </button>
             <button
-              onClick={() => { setPaymentMethod("crypto"); setSelectedStripePlan(null); }}
+              onClick={() => setPaymentMethod("crypto")}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition ${
                 paymentMethod === "crypto"
                   ? "bg-[#F59E0B] text-white"
@@ -265,58 +161,8 @@ export default function BillingPage() {
             </button>
           </div>
 
-          {paymentMethod === "card" && !selectedStripePlan && (
-            <div className="space-y-3">
-              {STRIPE_PLANS.map((sp) => (
-                <div
-                  key={sp.id}
-                  className={`border rounded-xl p-4 cursor-pointer transition hover:border-[#3A3A3D] ${
-                    sp.popular ? "border-[#7C3AED]/50 bg-[#7C3AED]/5" : "border-[#2A2A2D]"
-                  }`}
-                  onClick={() => setSelectedStripePlan(sp)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: sp.color + "15" }}
-                      >
-                        <span className="text-lg font-bold" style={{ color: sp.color }}>
-                          {sp.name[0]}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-semibold text-[#FAFAFA]">{sp.name}</h4>
-                          {sp.popular && (
-                            <span className="text-[9px] bg-[#7C3AED] text-white px-2 py-0.5 rounded-full font-medium">
-                              Popular
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#A1A1AA] mt-0.5">
-                          {sp.features.join(" · ")}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xl font-bold text-[#FAFAFA]">${sp.price}</span>
-                      <span className="text-xs text-[#A1A1AA]">/{sp.interval}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <p className="text-xs text-[#A1A1AA] text-center mt-2">
-                Cancel anytime. Payments processed securely by Stripe.
-              </p>
-            </div>
-          )}
-
-          {paymentMethod === "card" && selectedStripePlan && (
-            <StripeCheckoutButton
-              selectedPlan={selectedStripePlan}
-              onCancel={() => setSelectedStripePlan(null)}
-            />
+          {paymentMethod === "card" && (
+            <StripeComingSoon />
           )}
 
           {paymentMethod === "crypto" && (
