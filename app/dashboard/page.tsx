@@ -159,7 +159,7 @@ export default function DashboardPage() {
     agentCosts[e.agent_id] = (agentCosts[e.agent_id] || 0) + recalculateEventCost(e);
   });
 
-  if (loading && agents.length === 0) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Dashboard</h1>
