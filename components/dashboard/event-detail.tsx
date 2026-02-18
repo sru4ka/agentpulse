@@ -352,10 +352,10 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
                   </div>
                   <h3 className="text-sm font-medium text-[#FAFAFA] mb-1">No prompt data captured</h3>
                   <p className="text-xs text-[#A1A1AA] max-w-xs mx-auto leading-relaxed">
-                    Prompt capture requires the AgentPulse plugin v0.2+. Upgrade the plugin to see the exact prompts your agent sends to the LLM.
+                    Enable the LLM proxy to capture prompts. Run this on your agent server and restart:
                   </p>
                   <code className="inline-block mt-3 text-xs text-[#7C3AED] bg-[#7C3AED]/5 px-3 py-1.5 rounded-lg font-mono">
-                    pip install --upgrade agentpulse
+                    agentpulse enable-proxy
                   </code>
                 </div>
               )}
@@ -386,10 +386,10 @@ export default function EventDetail({ event, onClose }: EventDetailProps) {
                   </div>
                   <h3 className="text-sm font-medium text-[#FAFAFA] mb-1">No response data captured</h3>
                   <p className="text-xs text-[#A1A1AA] max-w-xs mx-auto leading-relaxed">
-                    Response capture requires the AgentPulse plugin v0.2+. Upgrade to see exactly what the LLM responded with.
+                    Enable the LLM proxy to capture responses. Run this on your agent server and restart:
                   </p>
                   <code className="inline-block mt-3 text-xs text-[#7C3AED] bg-[#7C3AED]/5 px-3 py-1.5 rounded-lg font-mono">
-                    pip install --upgrade agentpulse
+                    agentpulse enable-proxy
                   </code>
                 </div>
               )}

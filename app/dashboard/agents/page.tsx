@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { recalculateEventCost } from "@/lib/pricing";
 import AgentCard from "@/components/dashboard/agent-card";
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<any[]>([]);
+  const [agentCosts, setAgentCosts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const supabase = createBrowserSupabaseClient();
 
@@ -12,11 +14,32 @@ export default function AgentsPage() {
     const fetchAgents = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const res = await fetch("/api/agents", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = await res.json();
-      setAgents(data.agents || []);
+
+      const { data: agentsData } = await supabase
+        .from("agents")
+        .select("*")
+        .order("last_seen", { ascending: false });
+
+      const agentList = agentsData || [];
+      setAgents(agentList);
+
+      // Fetch today's events to calculate per-agent costs
+      if (agentList.length > 0) {
+        const today = new Date().toISOString().split("T")[0];
+        const { data: todayEvents } = await supabase
+          .from("events")
+          .select("agent_id, model, provider, input_tokens, output_tokens, cost_usd")
+          .in("agent_id", agentList.map((a: any) => a.id))
+          .gte("timestamp", today + "T00:00:00")
+          .lte("timestamp", today + "T23:59:59");
+
+        const costs: Record<string, number> = {};
+        (todayEvents || []).forEach((e: any) => {
+          costs[e.agent_id] = (costs[e.agent_id] || 0) + recalculateEventCost(e);
+        });
+        setAgentCosts(costs);
+      }
+
       setLoading(false);
     };
     fetchAgents();
@@ -39,7 +62,7 @@ export default function AgentsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {agents.map((agent: any) => (
-            <AgentCard key={agent.id} agent={agent} todayCost={0} />
+            <AgentCard key={agent.id} agent={agent} todayCost={agentCosts[agent.id] || 0} />
           ))}
         </div>
       )}

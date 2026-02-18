@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
   const supabase = createBrowserSupabaseClient();
 
-  // Initial load — get agents + session
+  // Initial load — get agents + session + data in one shot
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -34,26 +34,56 @@ export default function DashboardPage() {
         .select("*")
         .order("last_seen", { ascending: false });
 
-      setAgents(agentsData || []);
+      const agentList = agentsData || [];
+      setAgents(agentList);
+
+      // Fetch events + stats immediately (no waterfall)
+      if (agentList.length > 0) {
+        const agentIds = agentList.map((a: any) => a.id);
+        const fromTs = dateRange.from + "T00:00:00";
+        const toTs = dateRange.to + "T23:59:59";
+
+        const [eventsRes, statsRes] = await Promise.all([
+          supabase
+            .from("events")
+            .select("*")
+            .in("agent_id", agentIds)
+            .gte("timestamp", fromTs)
+            .lte("timestamp", toTs)
+            .order("timestamp", { ascending: false })
+            .limit(200),
+          supabase
+            .from("daily_stats")
+            .select("*")
+            .in("agent_id", agentIds)
+            .gte("date", dateRange.from)
+            .lte("date", dateRange.to)
+            .order("date", { ascending: true }),
+        ]);
+
+        setEvents(eventsRes.data || []);
+        setDailyStats(statsRes.data || []);
+      }
+
+      setLoading(false);
     };
     init();
   }, []);
 
-  // Fetch events + daily_stats when date range changes
+  // Refetch when date range changes (but not on initial load)
+  const [initialLoaded, setInitialLoaded] = useState(false);
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || agents.length === 0) {
+      if (accessToken) setInitialLoaded(true);
+      return;
+    }
+    if (!initialLoaded) {
+      setInitialLoaded(true);
+      return;
+    }
 
     const fetchData = async () => {
-      setLoading(true);
       const agentIds = agents.map((a) => a.id);
-
-      if (agentIds.length === 0) {
-        setEvents([]);
-        setDailyStats([]);
-        setLoading(false);
-        return;
-      }
-
       const fromTs = dateRange.from + "T00:00:00";
       const toTs = dateRange.to + "T23:59:59";
 
@@ -77,7 +107,6 @@ export default function DashboardPage() {
 
       setEvents(eventsRes.data || []);
       setDailyStats(statsRes.data || []);
-      setLoading(false);
     };
 
     fetchData();
