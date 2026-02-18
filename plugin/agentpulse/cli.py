@@ -356,12 +356,23 @@ def _get_bashrc_path():
     return os.path.join(home, ".profile")
 
 
-def _install_proxy_env(port: int):
-    """Add ANTHROPIC_BASE_URL export to the user's shell rc file."""
-    rc_path = _get_bashrc_path()
-    export_line = f'export ANTHROPIC_BASE_URL=http://127.0.0.1:{port}/anthropic  {PROXY_MARKER}'
+PROXY_ENV_VARS = {
+    "ANTHROPIC_BASE_URL": "anthropic",
+    "OPENAI_BASE_URL": "openai",
+    "MINIMAX_BASE_URL": "minimax",
+    "DEEPSEEK_BASE_URL": "deepseek",
+}
 
-    # Read existing content and check if already present
+
+def _install_proxy_env(port: int):
+    """Add provider base URL exports to the user's shell rc file."""
+    rc_path = _get_bashrc_path()
+
+    export_lines = []
+    for env_var, provider in PROXY_ENV_VARS.items():
+        export_lines.append(f'export {env_var}=http://127.0.0.1:{port}/{provider}  {PROXY_MARKER}')
+
+    # Read existing content
     existing = ""
     if os.path.exists(rc_path):
         with open(rc_path, "r") as f:
@@ -369,19 +380,20 @@ def _install_proxy_env(port: int):
 
     # Remove any old agentpulse-proxy lines (handles port changes)
     lines = [l for l in existing.splitlines() if PROXY_MARKER not in l]
-    lines.append(export_line)
+    lines.extend(export_lines)
 
     with open(rc_path, "w") as f:
         f.write("\n".join(lines) + "\n")
 
-    # Also set it in the current process so child processes pick it up
-    os.environ["ANTHROPIC_BASE_URL"] = f"http://127.0.0.1:{port}/anthropic"
+    # Also set in current process so child processes pick it up
+    for env_var, provider in PROXY_ENV_VARS.items():
+        os.environ[env_var] = f"http://127.0.0.1:{port}/{provider}"
 
     return rc_path
 
 
 def _uninstall_proxy_env():
-    """Remove ANTHROPIC_BASE_URL export from the user's shell rc file."""
+    """Remove provider base URL exports from the user's shell rc file."""
     rc_path = _get_bashrc_path()
     if not os.path.exists(rc_path):
         return rc_path
@@ -395,7 +407,8 @@ def _uninstall_proxy_env():
         f.write("\n".join(lines) + "\n")
 
     # Clean up current process env too
-    os.environ.pop("ANTHROPIC_BASE_URL", None)
+    for env_var in PROXY_ENV_VARS:
+        os.environ.pop(env_var, None)
 
     return rc_path
 
@@ -409,7 +422,7 @@ def cmd_enable_proxy(args):
         save_config(config)
         rc_path = _uninstall_proxy_env()
         print("🔌 LLM proxy disabled.")
-        print(f"   Removed ANTHROPIC_BASE_URL from {rc_path}")
+        print(f"   Removed proxy env vars from {rc_path}")
         print("   Restart agentpulse to apply: agentpulse stop && agentpulse start -d")
         return
 
@@ -421,9 +434,12 @@ def cmd_enable_proxy(args):
     rc_path = _install_proxy_env(port)
 
     print(f"🔌 LLM proxy enabled on port {port}")
-    print(f"   ANTHROPIC_BASE_URL added to {rc_path}")
-    print(f"\n   Restart agentpulse and open a new shell to activate:")
+    print(f"   Added to {rc_path}:")
+    for env_var, provider in PROXY_ENV_VARS.items():
+        print(f"     {env_var}=http://127.0.0.1:{port}/{provider}")
+    print(f"\n   Restart agentpulse and source your shell to activate:")
     print(f"   agentpulse stop && agentpulse start -d")
+    print(f"   source {rc_path}")
 
 
 def main():
