@@ -233,6 +233,8 @@ export async function POST(request: Request) {
         error_message: e.error_message || null,
         task_context: e.task_context || null,
         tools_used: e.tools_used || [],
+        prompt_messages: e.prompt_messages || null,
+        response_text: e.response_text || null,
         metadata: {
           ...(e.metadata || {}),
           ...(e.prompt_messages ? { prompt_messages: e.prompt_messages } : {}),
