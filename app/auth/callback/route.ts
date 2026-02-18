@@ -30,7 +30,12 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${redirectBase}/login?error=no_code`)
   }
 
+  // Collect cookies set by Supabase during the exchange so we can
+  // forward them on the redirect response (NextResponse.redirect creates
+  // a new response that won't automatically include cookieStore mutations).
   const cookieStore = await cookies()
+  const pendingCookies: Array<{ name: string; value: string; options: Record<string, any> }> = []
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -40,13 +45,12 @@ export async function GET(request: Request) {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
+          pendingCookies.push(...cookiesToSet)
           cookiesToSet.forEach(({ name, value, options }) => {
             try {
               cookieStore.set(name, value, { ...options })
             } catch (err) {
-              // This can fail when called from a Server Component context,
-              // but Route Handlers should be fine.
-              console.error(`[auth/callback] Failed to set cookie ${name}:`, err)
+              // Ignore — we'll set them on the redirect response below.
             }
           })
         },
@@ -61,5 +65,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${redirectBase}/login?error=exchange_failed`)
   }
 
-  return NextResponse.redirect(`${redirectBase}${next}`)
+  // Set session cookies on the redirect response so the browser receives them.
+  const response = NextResponse.redirect(`${redirectBase}${next}`)
+  pendingCookies.forEach(({ name, value, options }) => {
+    response.cookies.set(name, value, options)
+  })
+  return response
 }
