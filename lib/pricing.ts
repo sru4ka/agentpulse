@@ -28,6 +28,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     inputPerMillion: 0.80,
     outputPerMillion: 4,
   },
+  'anthropic/claude-haiku-4-5': {
+    provider: 'anthropic',
+    model: 'claude-haiku-4-5',
+    inputPerMillion: 1,
+    outputPerMillion: 5,
+    cacheReadPerMillion: 0.10,
+    cacheWritePerMillion: 1.25,
+  },
   'openai/gpt-4o': {
     provider: 'openai',
     model: 'gpt-4o',
