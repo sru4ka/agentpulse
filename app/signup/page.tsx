@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -13,6 +15,13 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
 
   const supabase = createBrowserSupabaseClient();
+
+  // If already logged in (e.g. returning from GitHub OAuth), redirect to dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push("/dashboard");
+    });
+  }, []);
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();

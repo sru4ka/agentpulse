@@ -1,0 +1,39 @@
+{
+  "name": "agentpulse",
+  "version": "0.5.0",
+  "description": "AI Agent Observability — track costs, monitor performance, optimize your agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agentpulse": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "llm",
+    "ai",
+    "agent",
+    "observability",
+    "openai",
+    "anthropic",
+    "cost-tracking",
+    "monitoring"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sru4ka/agentpulse"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
