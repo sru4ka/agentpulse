@@ -8,8 +8,8 @@ logger = logging.getLogger("agentpulse.parser")
 # ─── Model pricing per million tokens (USD) ───
 MODEL_PRICING = {
     # MiniMax
-    "minimax/MiniMax-M2.5": {"input": 15, "output": 120},
-    "MiniMax-M2.5": {"input": 15, "output": 120},
+    "minimax/MiniMax-M2.5": {"input": 1, "output": 5},
+    "MiniMax-M2.5": {"input": 1, "output": 5},
     "minimax-m1": {"input": 5, "output": 40},
     "MiniMax-Text-02": {"input": 1, "output": 5},
     "abab6.5s-chat": {"input": 1, "output": 5},

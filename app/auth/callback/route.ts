@@ -9,16 +9,25 @@ export async function GET(request: Request) {
   const errorParam = searchParams.get('error')
   const errorDescription = searchParams.get('error_description')
 
+  // Determine the correct origin for redirects.
+  // On Vercel/production behind a reverse proxy, request.url.origin may be
+  // an internal host. Use x-forwarded-host to get the real user-facing domain.
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https'
+  const redirectBase = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : origin
+
   // GitHub may redirect back with an error (e.g., user denied access)
   if (errorParam) {
     console.error('[auth/callback] GitHub OAuth error:', errorParam, errorDescription)
     const message = encodeURIComponent(errorDescription || errorParam)
-    return NextResponse.redirect(`${origin}/login?error=${message}`)
+    return NextResponse.redirect(`${redirectBase}/login?error=${message}`)
   }
 
   if (!code) {
     console.error('[auth/callback] No code parameter received')
-    return NextResponse.redirect(`${origin}/login?error=no_code`)
+    return NextResponse.redirect(`${redirectBase}/login?error=no_code`)
   }
 
   const cookieStore = await cookies()
@@ -31,13 +40,15 @@ export async function GET(request: Request) {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch (err) {
-            console.error('[auth/callback] Failed to set cookies:', err)
-          }
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try {
+              cookieStore.set(name, value, { ...options })
+            } catch (err) {
+              // This can fail when called from a Server Component context,
+              // but Route Handlers should be fine.
+              console.error(`[auth/callback] Failed to set cookie ${name}:`, err)
+            }
+          })
         },
       },
     }
@@ -47,8 +58,8 @@ export async function GET(request: Request) {
 
   if (error) {
     console.error('[auth/callback] exchangeCodeForSession failed:', error.message)
-    return NextResponse.redirect(`${origin}/login?error=exchange_failed`)
+    return NextResponse.redirect(`${redirectBase}/login?error=exchange_failed`)
   }
 
-  return NextResponse.redirect(`${origin}${next}`)
+  return NextResponse.redirect(`${redirectBase}${next}`)
 }

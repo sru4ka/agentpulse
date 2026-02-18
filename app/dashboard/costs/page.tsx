@@ -144,6 +144,8 @@ export default function CostsPage() {
         <StatCard title="Projected Monthly" value={formatCost(projectedMonthly)} subtitle="at current rate" />
       </div>
 
+      <Recommendations events={events} dailyStats={dailyStats} />
+
       <CostChart data={costChartData} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -183,7 +185,6 @@ export default function CostsPage() {
         </div>
       )}
 
-      <Recommendations events={events} dailyStats={dailyStats} />
     </div>
   );
 }
