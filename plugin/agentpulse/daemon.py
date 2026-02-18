@@ -78,11 +78,21 @@ class AgentPulseDaemon:
             }
         return self._runs[run_id]
 
-    def _try_get_proxy_capture(self):
-        """Try to get the most recent unclaimed proxy capture."""
+    def _try_get_proxy_capture(self, retries=4, delay=0.3):
+        """Try to get the most recent unclaimed proxy capture.
+
+        Retries with a short delay to handle the race condition where
+        the log line arrives before the proxy finishes capturing the response.
+        """
         if not self._proxy:
             return None
-        return self._proxy.get_latest_capture()
+        for attempt in range(retries):
+            cap = self._proxy.get_latest_capture()
+            if cap:
+                return cap
+            if attempt < retries - 1:
+                time.sleep(delay)
+        return None
 
     def process_lines(self, lines: list[str]):
         """Parse OpenClaw JSON log lines and emit events."""

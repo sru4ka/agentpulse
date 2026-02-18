@@ -59,9 +59,96 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to save payment', details: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, payment_id: data.id })
+    // Immediately try to verify on-chain
+    const verifyResult = await verifyTransaction(data.id, tx_hash, plan, email, supabase)
+
+    return NextResponse.json({
+      success: true,
+      payment_id: data.id,
+      verification: verifyResult,
+    })
   } catch (err: any) {
     return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 })
+  }
+}
+
+// ─── Inline on-chain verification ───
+
+const ETH_RPC_URL = process.env.ETH_RPC_URL || 'https://eth.llamarpc.com'
+const RECEIVING_WALLET = process.env.ETH_RECEIVING_WALLET || ''
+const PLAN_ETH_AMOUNTS: Record<string, number> = {
+  pro: 0.060,
+  team: 0.150,
+}
+
+async function ethRpc(method: string, params: any[]) {
+  const res = await fetch(ETH_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
+  })
+  const data = await res.json()
+  return data.result || null
+}
+
+function weiToEth(hexWei: string): number {
+  return Number(BigInt(hexWei)) / 1e18
+}
+
+async function verifyTransaction(
+  paymentId: string,
+  txHash: string,
+  plan: string,
+  email: string,
+  supabase: any
+): Promise<{ status: string; message: string }> {
+  try {
+    const tx = await ethRpc('eth_getTransactionByHash', [txHash])
+    if (!tx) {
+      return { status: 'pending', message: 'Transaction not found on-chain yet. It will be verified automatically once confirmed.' }
+    }
+
+    if (!tx.blockNumber) {
+      return { status: 'pending', message: 'Transaction is pending confirmation. Your account will be upgraded automatically once confirmed.' }
+    }
+
+    const receipt = await ethRpc('eth_getTransactionReceipt', [txHash])
+    if (!receipt || receipt.status !== '0x1') {
+      await supabase.from('crypto_payments').update({ status: 'rejected', verified_at: new Date().toISOString() }).eq('id', paymentId)
+      return { status: 'rejected', message: 'Transaction failed on-chain.' }
+    }
+
+    if (RECEIVING_WALLET && tx.to?.toLowerCase() !== RECEIVING_WALLET.toLowerCase()) {
+      await supabase.from('crypto_payments').update({ status: 'rejected', verified_at: new Date().toISOString() }).eq('id', paymentId)
+      return { status: 'rejected', message: 'Transaction was sent to wrong wallet address.' }
+    }
+
+    const ethAmount = weiToEth(tx.value)
+    const requiredAmount = PLAN_ETH_AMOUNTS[plan]
+    if (!requiredAmount || ethAmount < requiredAmount) {
+      await supabase.from('crypto_payments').update({ status: 'rejected', verified_at: new Date().toISOString(), amount_eth: String(ethAmount) }).eq('id', paymentId)
+      return { status: 'rejected', message: `Insufficient amount. Sent ${ethAmount.toFixed(4)} ETH, required ${requiredAmount} ETH.` }
+    }
+
+    // Confirmed — upgrade plan
+    await supabase.from('crypto_payments').update({
+      status: 'confirmed',
+      verified_at: new Date().toISOString(),
+      amount_eth: String(ethAmount),
+      from_address: tx.from,
+    }).eq('id', paymentId)
+
+    await supabase.from('profiles').update({ plan }).eq('email', email)
+
+    try {
+      const { sendPaymentConfirmationEmail } = await import('@/lib/email')
+      await sendPaymentConfirmationEmail(email, plan, plan === 'pro' ? 199 : 499, txHash)
+    } catch {}
+
+    return { status: 'confirmed', message: `Payment confirmed! Your account has been upgraded to ${plan}.` }
+  } catch (err: any) {
+    console.error('[crypto] Auto-verify error:', err.message)
+    return { status: 'pending', message: 'Could not verify immediately. Your payment will be verified automatically within minutes.' }
   }
 }
 

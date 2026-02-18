@@ -388,9 +388,12 @@ class LLMProxyServer:
             logger.info("LLM proxy stopped")
 
     def get_latest_capture(self):
-        """Get the most recent unclaimed capture, or None."""
-        # Walk backwards through the deque
-        for i in range(len(self.captures) - 1, -1, -1):
+        """Get the oldest unclaimed capture (FIFO order), or None.
+
+        Uses FIFO instead of LIFO to correctly match captures to events
+        when multiple LLM calls happen in quick succession.
+        """
+        for i in range(len(self.captures)):
             try:
                 cap = self.captures[i]
                 if not cap["claimed"]:

@@ -165,6 +165,36 @@ agentpulse.auto_instrument()`}</code>
         </div>
       </div>
 
+      {/* Step 4 — Enable Prompt Capture (Optional) */}
+      <div className="bg-[#141415] border border-[#7C3AED]/30 rounded-xl p-6">
+        <div className="flex gap-3">
+          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-[#7C3AED]/15 text-[#7C3AED] flex items-center justify-center text-xs font-bold">4</div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-[#FAFAFA] mb-1.5">
+              Enable prompt &amp; response capture
+              <span className="ml-2 text-[9px] bg-[#7C3AED]/15 text-[#7C3AED] px-2 py-0.5 rounded-full font-bold uppercase">Recommended</span>
+            </p>
+            <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono mb-2">
+              agentpulse enable-proxy
+            </code>
+            <p className="text-xs text-[#A1A1AA] mb-2">
+              This starts a local LLM proxy that captures the <strong className="text-[#FAFAFA]">exact prompts and responses</strong> your agent sends/receives.
+              Without it, you only get token counts and costs — no prompt replay.
+            </p>
+            <p className="text-xs text-[#A1A1AA] mb-2">
+              Then <strong className="text-[#FAFAFA]">restart</strong> agentpulse and open a new terminal:
+            </p>
+            <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono whitespace-pre-wrap">{`agentpulse stop && agentpulse start -d
+source ~/.bashrc`}</code>
+            <p className="text-xs text-[#A1A1AA] mt-2">
+              The proxy intercepts API calls on <span className="text-[#FAFAFA] font-mono">localhost:8787</span> and forwards them to the real provider.
+              It sets <span className="text-[#FAFAFA] font-mono">ANTHROPIC_BASE_URL</span> automatically.
+              For other providers, set <span className="text-[#FAFAFA] font-mono">OPENAI_BASE_URL=http://127.0.0.1:8787/openai</span> etc.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Verify */}
       <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6">
         <h3 className="text-sm font-semibold text-[#FAFAFA] mb-3">Verify your setup</h3>
