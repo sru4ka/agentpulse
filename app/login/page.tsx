@@ -29,6 +29,13 @@ function LoginForm() {
 
   const supabase = createBrowserSupabaseClient();
 
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push("/dashboard");
+    });
+  }, []);
+
   // Show error from OAuth callback redirect
   useEffect(() => {
     const errorParam = searchParams.get("error");
