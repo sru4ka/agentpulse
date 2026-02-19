@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      profile: { plan: profile?.plan || 'free' },
+      profile: { plan: profile?.plan || 'free', api_key: profile?.api_key || null, email: profile?.email || null },
       agents: agents || [],
       today: {
         cost: todayCost,
