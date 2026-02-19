@@ -1,6 +1,72 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { rateLimit, EVENTS_RATE_LIMIT } from '@/lib/rate-limit'
+import { authenticateRequest } from '@/lib/api-auth'
+
+export async function GET(request: Request) {
+  try {
+    const auth = await authenticateRequest(request)
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized. Provide X-API-Key header or Bearer token.' }, { status: 401 })
+    }
+
+    if (auth.agentIds.length === 0) {
+      return NextResponse.json({ events: [], total: 0 })
+    }
+
+    const url = new URL(request.url)
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 500)
+    const offset = parseInt(url.searchParams.get('offset') || '0')
+    const model = url.searchParams.get('model')
+    const status = url.searchParams.get('status')
+    const agentName = url.searchParams.get('agent')
+    const from = url.searchParams.get('from')
+    const to = url.searchParams.get('to')
+
+    const supabase = createServerSupabaseClient()
+
+    // If agent name filter, resolve to agent IDs
+    let agentIds = auth.agentIds
+    if (agentName) {
+      const { data: matchedAgents } = await supabase
+        .from('agents')
+        .select('id')
+        .eq('user_id', auth.userId)
+        .ilike('name', agentName)
+      agentIds = (matchedAgents || []).map((a: any) => a.id)
+      if (agentIds.length === 0) {
+        return NextResponse.json({ events: [], total: 0 })
+      }
+    }
+
+    let query = supabase
+      .from('events')
+      .select('*', { count: 'exact' })
+      .in('agent_id', agentIds)
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (model) query = query.ilike('model', `%${model}%`)
+    if (status) query = query.eq('status', status)
+    if (from) query = query.gte('timestamp', from)
+    if (to) query = query.lte('timestamp', to)
+
+    const { data: events, count, error } = await query
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to query events', details: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      events: events || [],
+      total: count || 0,
+      limit,
+      offset,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 })
+  }
+}
 
 export async function POST(request: Request) {
   try {
