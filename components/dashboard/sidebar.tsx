@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 const PLAN_COLORS: Record<string, string> = {
@@ -118,24 +119,9 @@ interface SidebarProps {
 export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [plan, setPlan] = useState<string>("free");
+  const { plan: cachedPlan } = useDashboardCache();
+  const plan = cachedPlan; // null until loaded, then "free"/"pro"/etc.
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const fetchPlan = async () => {
-      const supabase = createBrowserSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch("/api/stats", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPlan(data.profile?.plan || "free");
-      }
-    };
-    fetchPlan();
-  }, []);
 
   // Close mobile menu on navigation
   useEffect(() => {
@@ -148,8 +134,11 @@ export default function Sidebar({ user }: SidebarProps) {
     window.location.href = "/";
   };
 
-  const userRank = PLAN_RANK[plan] ?? 0;
-  const planColor = PLAN_COLORS[plan] || PLAN_COLORS.free;
+  // While plan is loading (null), don't lock anything or show plan badge
+  const planLoaded = plan !== null;
+  const effectivePlan = plan || "free";
+  const userRank = planLoaded ? (PLAN_RANK[effectivePlan] ?? 0) : 999; // Don't lock while loading
+  const planColor = PLAN_COLORS[effectivePlan] || PLAN_COLORS.free;
 
   const sidebarContent = (
     <>
@@ -164,14 +153,16 @@ export default function Sidebar({ user }: SidebarProps) {
           </div>
           <span className="text-[#FAFAFA] font-bold text-lg tracking-tight">AgentPulse</span>
         </div>
-        <div className="mt-3">
-          <span
-            className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider"
-            style={{ backgroundColor: planColor + "20", color: planColor }}
-          >
-            {plan} plan
-          </span>
-        </div>
+        {planLoaded && (
+          <div className="mt-3">
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider"
+              style={{ backgroundColor: planColor + "20", color: planColor }}
+            >
+              {effectivePlan} plan
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -225,7 +216,7 @@ export default function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* Upgrade CTA for free users */}
-      {plan === "free" && (
+      {planLoaded && effectivePlan === "free" && (
         <div className="px-4 py-3">
           <button
             onClick={() => router.push("/dashboard/billing")}
