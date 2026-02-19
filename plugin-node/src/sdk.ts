@@ -846,8 +846,17 @@ function patchTransport(transport: typeof http | typeof https, origTransport: { 
 function patchHTTP(): void {
   if (_patched.has("http")) return;
 
-  patchTransport(https, _origHttps, "https");
-  patchTransport(http, _origHttp, "http");
+  // IMPORTANT: We must patch the REAL module objects, not the TypeScript
+  // __importStar wrappers (which have non-configurable getter-only properties).
+  // Use require() to get the actual module objects.
+  try {
+    const realHttps = require("https");
+    const realHttp = require("http");
+    patchTransport(realHttps, _origHttps, "https");
+    patchTransport(realHttp, _origHttp, "http");
+  } catch {
+    // If patching fails entirely, skip HTTP interception
+  }
 
   _patched.add("http");
 }
