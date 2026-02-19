@@ -47,7 +47,7 @@ export default function DashboardPage() {
         .gte("timestamp", fromTs)
         .lte("timestamp", toTs)
         .order("timestamp", { ascending: false })
-        .limit(200),
+        .limit(5000),
       supabase
         .from("daily_stats")
         .select("*")
@@ -103,7 +103,7 @@ export default function DashboardPage() {
     setEvents((prev) => {
       const existingIds = new Set(prev.map((e: any) => e.id));
       const fresh = newEvents.filter((e) => !existingIds.has(e.id));
-      return [...fresh, ...prev].slice(0, 200);
+      return [...fresh, ...prev].slice(0, 5000);
     });
   }, []);
 
