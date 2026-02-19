@@ -729,7 +729,7 @@ function extractPathFromArgs(args: any[]): string | undefined {
 function patchTransport(transport: typeof http | typeof https, origTransport: { request: typeof http.request; get: typeof http.get }, name: string): void {
   const origRequest = origTransport.request;
 
-  (transport as any).request = function patchedRequest(this: any, ...args: any[]): http.ClientRequest {
+  function patchedRequest(this: any, ...args: any[]): http.ClientRequest {
     const hostname = extractHostFromArgs(args);
     const provider = matchLLMHost(hostname || "");
 
@@ -823,7 +823,24 @@ function patchTransport(transport: typeof http | typeof https, origTransport: { 
     });
 
     return req;
-  };
+  }
+
+  // Node.js v22+ makes http.request/https.request getter-only.
+  // Use Object.defineProperty to override, falling back to direct assignment.
+  try {
+    Object.defineProperty(transport, "request", {
+      value: patchedRequest,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+  } catch {
+    try {
+      (transport as any).request = patchedRequest;
+    } catch {
+      // Cannot patch this transport — skip silently
+    }
+  }
 }
 
 function patchHTTP(): void {
