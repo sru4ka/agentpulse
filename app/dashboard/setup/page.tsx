@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 
-type Mode = "openclaw" | "python";
+type Mode = "openclaw" | "nodejs" | "python";
 
 export default function SetupPage() {
   const [profile, setProfile] = useState<any>(null);
@@ -114,7 +114,17 @@ export default function SetupPage() {
                       : "text-[#A1A1AA] hover:text-[#FAFAFA]"
                   }`}
                 >
-                  OpenClaw / Node.js
+                  OpenClaw
+                </button>
+                <button
+                  onClick={() => setMode("nodejs")}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    mode === "nodejs"
+                      ? "bg-[#7C3AED]/15 text-[#7C3AED]"
+                      : "text-[#A1A1AA] hover:text-[#FAFAFA]"
+                  }`}
+                >
+                  Node.js (npm)
                 </button>
                 <button
                   onClick={() => setMode("python")}
@@ -137,6 +147,31 @@ export default function SetupPage() {
                     Runs in the background and <strong className="text-[#FAFAFA]">automatically tracks all LLM calls</strong> your OpenClaw agent makes.
                     No code changes needed.
                   </p>
+                </>
+              ) : mode === "nodejs" ? (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#A1A1AA] font-medium">Option A: SDK integration (recommended)</p>
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2 text-sm text-[#A1A1AA] font-mono">
+                      npm install @agentpulse/agentpulse
+                    </code>
+                    <p className="text-xs text-[#A1A1AA] mt-1">Then add to the top of your app:</p>
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#A1A1AA] font-mono whitespace-pre">{`const agentpulse = require('@agentpulse/agentpulse');
+agentpulse.init({ apiKey: '${profile?.api_key?.slice(0, 12) || "ap_..."}...' });
+agentpulse.autoInstrument();`}</code>
+                    <p className="text-xs text-[#A1A1AA]">
+                      Add this <strong className="text-[#FAFAFA]">before</strong> importing OpenAI/Anthropic. All LLM calls are tracked automatically.
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[#2A2A2D] space-y-2">
+                    <p className="text-xs text-[#A1A1AA] font-medium">Option B: Global CLI install</p>
+                    <code className="block bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-3 py-2.5 text-sm text-[#A1A1AA] font-mono whitespace-pre">{`sudo npm install -g @agentpulse/agentpulse
+agentpulse init
+agentpulse start -d`}</code>
+                    <p className="text-xs text-[#A1A1AA]">
+                      Same CLI commands as the Python version. Runs the monitoring daemon in the background.
+                    </p>
+                  </div>
                 </>
               ) : (
                 <>
@@ -227,6 +262,35 @@ source ~/.bashrc`}</code>
         <h3 className="text-lg font-semibold text-[#FAFAFA] mb-4">Troubleshooting</h3>
         <div className="space-y-3">
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Node.js: AgentPulse is not a constructor</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>The SDK exports functions, not a class</li>
+              <li>Use <span className="text-[#7C3AED] font-mono">agentpulse.init()</span> not <span className="text-[#7C3AED] font-mono">new AgentPulse()</span></li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Node.js: Cannot find module &apos;@agentpulse/agentpulse&apos;</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>Run <span className="text-[#7C3AED] font-mono">npm install @agentpulse/agentpulse</span> in your project</li>
+              <li>Make sure you&apos;re running from the correct directory</li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Node.js: EACCES permission denied (global install)</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>Use <span className="text-[#7C3AED] font-mono">sudo npm install -g @agentpulse/agentpulse</span></li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+            <p className="text-sm text-[#FAFAFA] font-medium mb-1">Node.js: no events showing up</p>
+            <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+              <li>Make sure <span className="text-[#7C3AED] font-mono">init()</span> is called before <span className="text-[#7C3AED] font-mono">autoInstrument()</span></li>
+              <li>Verify your API key is correct</li>
+              <li>Events are batched every 10 seconds — wait a moment</li>
+              <li>Streaming responses are not tracked by autoInstrument — use <span className="text-[#7C3AED] font-mono">agentpulse.track(response)</span></li>
+            </ul>
+          </div>
+          <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">Dashboard shows 0 events / only test events</p>
             <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
               <li>Make sure agentpulse is running: <span className="text-[#7C3AED] font-mono">agentpulse status</span></li>
@@ -262,7 +326,8 @@ source ~/.bashrc`}</code>
           <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
             <p className="text-sm text-[#FAFAFA] font-medium mb-1">Upgrading to latest version</p>
             <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
-              <li>Run: <span className="text-[#7C3AED] font-mono">pipx upgrade agentpulse</span></li>
+              <li>Node.js: <span className="text-[#7C3AED] font-mono">npm update @agentpulse/agentpulse</span> or <span className="text-[#7C3AED] font-mono">sudo npm update -g @agentpulse/agentpulse</span></li>
+              <li>Python: <span className="text-[#7C3AED] font-mono">pipx upgrade agentpulse</span></li>
               <li>Then restart: <span className="text-[#7C3AED] font-mono">agentpulse stop && agentpulse start -d</span></li>
             </ul>
           </div>
