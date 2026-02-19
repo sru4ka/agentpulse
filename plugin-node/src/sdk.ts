@@ -107,6 +107,23 @@ export function flush(): void {
   const url = new URL(_config.endpoint);
   const transport = url.protocol === "https:" ? https : http;
 
+  const handleResponse = (res: http.IncomingMessage, isRedirect = false) => {
+    let body = "";
+    res.on("data", (chunk: Buffer) => { body += chunk; });
+    res.on("end", () => {
+      if (res.statusCode === 200) {
+        _eventsSent += events.length;
+      } else if (res.statusCode === 401) {
+        console.error("AgentPulse: Invalid API key (401). Check your AGENTPULSE_API_KEY or run `npx agentpulse init`.");
+      } else if (res.statusCode === 429) {
+        console.warn("AgentPulse: Rate limited (429). Events will retry.");
+        _buffer.push(...events);
+      } else if (res.statusCode && res.statusCode >= 400) {
+        console.error(`AgentPulse: API error (${res.statusCode}): ${body.slice(0, 200)}`);
+      }
+    });
+  };
+
   const req = transport.request(
     {
       hostname: url.hostname,
@@ -130,28 +147,23 @@ export function flush(): void {
             headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) },
             timeout: 10_000,
           },
-          (rRes) => {
-            if (rRes.statusCode === 200) {
-              _eventsSent += events.length;
-            }
-            rRes.resume();
-          },
+          (rRes) => handleResponse(rRes, true),
         );
-        rReq.on("error", () => { _buffer.push(...events); });
+        rReq.on("error", (e: Error) => {
+          console.error(`AgentPulse: Network error on redirect: ${e.message}`);
+          _buffer.push(...events);
+        });
         rReq.end(payload);
         res.resume();
         return;
       }
 
-      if (res.statusCode === 200) {
-        _eventsSent += events.length;
-      }
-      res.resume();
+      handleResponse(res);
     },
   );
 
-  req.on("error", () => {
-    // Re-add events for retry
+  req.on("error", (e: Error) => {
+    console.error(`AgentPulse: Network error: ${e.message}. ${events.length} events will retry.`);
     _buffer.push(...events);
   });
 
@@ -335,6 +347,10 @@ function extractAnthropicMessages(args: any[]): Array<{ role: string; content: s
 
 // ── Auto-instrumentation ──
 
+/**
+ * Auto-instrument OpenAI and Anthropic SDKs using require().
+ * Works with CommonJS (require) imports. For ESM (import), use instrument() instead.
+ */
 export function autoInstrument(): void {
   if (!_initialized) {
     console.warn("AgentPulse: call init() before autoInstrument()");
@@ -342,6 +358,96 @@ export function autoInstrument(): void {
   }
   patchOpenAI();
   patchAnthropic();
+}
+
+/**
+ * Instrument a specific OpenAI or Anthropic client instance.
+ * Works with both ESM and CommonJS imports.
+ *
+ * Usage:
+ *   import OpenAI from "openai";
+ *   import agentpulse from "@agentpulse/agentpulse";
+ *
+ *   agentpulse.init({ apiKey: "ap_..." });
+ *   const client = new OpenAI();
+ *   agentpulse.instrument(client);
+ */
+export function instrument(client: any): void {
+  if (!_initialized) {
+    console.warn("AgentPulse: call init() before instrument()");
+    return;
+  }
+
+  // Detect OpenAI client (has chat.completions.create)
+  if (client?.chat?.completions?.create) {
+    patchOpenAIInstance(client);
+    return;
+  }
+
+  // Detect Anthropic client (has messages.create)
+  if (client?.messages?.create) {
+    patchAnthropicInstance(client);
+    return;
+  }
+
+  console.warn("AgentPulse: Unknown client type. Pass an OpenAI or Anthropic client instance.");
+}
+
+function patchOpenAIInstance(client: any): void {
+  if (!client?.chat?.completions?.create) return;
+  if (client.__agentpulse_patched) return;
+
+  const origCreate = client.chat.completions.create.bind(client.chat.completions);
+
+  client.chat.completions.create = async function (...args: any[]) {
+    const start = Date.now();
+    const opts = args[0] || {};
+
+    try {
+      const response = await origCreate(...args);
+
+      // Don't track streaming responses
+      if (opts.stream) return response;
+
+      const latency = Date.now() - start;
+      const baseUrl = client?.baseURL || client?._options?.baseURL || "";
+      const provider = detectProviderFromBaseUrl(String(baseUrl)) || detectProviderFromModel(opts.model || "");
+
+      const event = extractEventFromResponse(response, provider, latency);
+      if (event) {
+        event.prompt_messages = extractPromptMessages(args);
+        addEvent(event);
+      }
+
+      return response;
+    } catch (e: any) {
+      const latency = Date.now() - start;
+      const errStr = String(e);
+      const status = errStr.toLowerCase().includes("rate") && errStr.toLowerCase().includes("limit") ? "rate_limit" : "error";
+      const baseUrl = client?.baseURL || client?._options?.baseURL || "";
+      const provider = detectProviderFromBaseUrl(String(baseUrl)) || detectProviderFromModel(opts.model || "");
+
+      addEvent({
+        timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
+        provider,
+        model: opts.model || "unknown",
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0,
+        latency_ms: latency,
+        status,
+        error_message: errStr,
+        task_context: _globalTaskContext,
+        tools_used: [],
+        prompt_messages: extractPromptMessages(args),
+        response_text: null,
+        user_id: _globalUserId,
+      });
+      throw e;
+    }
+  };
+
+  client.__agentpulse_patched = true;
 }
 
 function patchOpenAI(): void {
@@ -357,67 +463,12 @@ function patchOpenAI(): void {
   const OpenAI = openai.default || openai.OpenAI || openai;
   if (!OpenAI?.prototype) return;
 
-  // Patch the chat.completions.create method on all new instances
-  const origConstructor = OpenAI;
-  const patchInstance = (client: any) => {
-    if (!client?.chat?.completions?.create) return;
-
-    const origCreate = client.chat.completions.create.bind(client.chat.completions);
-
-    client.chat.completions.create = async function (...args: any[]) {
-      const start = Date.now();
-      const opts = args[0] || {};
-
-      try {
-        const response = await origCreate(...args);
-
-        // Don't track streaming responses
-        if (opts.stream) return response;
-
-        const latency = Date.now() - start;
-        const baseUrl = client?.baseURL || client?._options?.baseURL || "";
-        const provider = detectProviderFromBaseUrl(String(baseUrl)) || detectProviderFromModel(opts.model || "");
-
-        const event = extractEventFromResponse(response, provider, latency);
-        if (event) {
-          event.prompt_messages = extractPromptMessages(args);
-          addEvent(event);
-        }
-
-        return response;
-      } catch (e: any) {
-        const latency = Date.now() - start;
-        const errStr = String(e);
-        const status = errStr.toLowerCase().includes("rate") && errStr.toLowerCase().includes("limit") ? "rate_limit" : "error";
-        const baseUrl = client?.baseURL || client?._options?.baseURL || "";
-        const provider = detectProviderFromBaseUrl(String(baseUrl)) || detectProviderFromModel(opts.model || "");
-
-        addEvent({
-          timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
-          provider,
-          model: opts.model || "unknown",
-          input_tokens: 0,
-          output_tokens: 0,
-          cost_usd: 0,
-          latency_ms: latency,
-          status,
-          error_message: errStr,
-          task_context: _globalTaskContext,
-          tools_used: [],
-          prompt_messages: extractPromptMessages(args),
-          response_text: null,
-          user_id: _globalUserId,
-        });
-        throw e;
-      }
-    };
-  };
-
   // Monkey-patch the OpenAI constructor to auto-instrument new instances
+  const origConstructor = OpenAI;
   const handler: ProxyHandler<any> = {
     construct(target: any, argArray: any[], newTarget: any): object {
       const instance = Reflect.construct(target, argArray, newTarget);
-      patchInstance(instance);
+      patchOpenAIInstance(instance);
       return instance as object;
     },
   };
@@ -442,6 +493,57 @@ function patchOpenAI(): void {
   _patched.add("openai");
 }
 
+function patchAnthropicInstance(client: any): void {
+  if (!client?.messages?.create) return;
+  if (client.__agentpulse_patched) return;
+
+  const origCreate = client.messages.create.bind(client.messages);
+
+  client.messages.create = async function (...args: any[]) {
+    const start = Date.now();
+    const opts = args[0] || {};
+
+    try {
+      const response = await origCreate(...args);
+
+      if (opts.stream) return response;
+
+      const latency = Date.now() - start;
+      const event = extractEventFromResponse(response, "anthropic", latency);
+      if (event) {
+        event.prompt_messages = extractAnthropicMessages(args);
+        addEvent(event);
+      }
+
+      return response;
+    } catch (e: any) {
+      const latency = Date.now() - start;
+      const errStr = String(e);
+      const status = errStr.toLowerCase().includes("rate") && errStr.toLowerCase().includes("limit") ? "rate_limit" : "error";
+
+      addEvent({
+        timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
+        provider: "anthropic",
+        model: opts.model || "unknown",
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: 0,
+        latency_ms: latency,
+        status,
+        error_message: errStr,
+        task_context: _globalTaskContext,
+        tools_used: [],
+        prompt_messages: extractAnthropicMessages(args),
+        response_text: null,
+        user_id: _globalUserId,
+      });
+      throw e;
+    }
+  };
+
+  client.__agentpulse_patched = true;
+}
+
 function patchAnthropic(): void {
   if (_patched.has("anthropic")) return;
 
@@ -455,58 +557,10 @@ function patchAnthropic(): void {
   const Anthropic = anthropic.default || anthropic.Anthropic || anthropic;
   if (!Anthropic?.prototype) return;
 
-  const patchInstance = (client: any) => {
-    if (!client?.messages?.create) return;
-
-    const origCreate = client.messages.create.bind(client.messages);
-
-    client.messages.create = async function (...args: any[]) {
-      const start = Date.now();
-      const opts = args[0] || {};
-
-      try {
-        const response = await origCreate(...args);
-
-        if (opts.stream) return response;
-
-        const latency = Date.now() - start;
-        const event = extractEventFromResponse(response, "anthropic", latency);
-        if (event) {
-          event.prompt_messages = extractAnthropicMessages(args);
-          addEvent(event);
-        }
-
-        return response;
-      } catch (e: any) {
-        const latency = Date.now() - start;
-        const errStr = String(e);
-        const status = errStr.toLowerCase().includes("rate") && errStr.toLowerCase().includes("limit") ? "rate_limit" : "error";
-
-        addEvent({
-          timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
-          provider: "anthropic",
-          model: opts.model || "unknown",
-          input_tokens: 0,
-          output_tokens: 0,
-          cost_usd: 0,
-          latency_ms: latency,
-          status,
-          error_message: errStr,
-          task_context: _globalTaskContext,
-          tools_used: [],
-          prompt_messages: extractAnthropicMessages(args),
-          response_text: null,
-          user_id: _globalUserId,
-        });
-        throw e;
-      }
-    };
-  };
-
   const handler: ProxyHandler<any> = {
     construct(target: any, argArray: any[], newTarget: any): object {
       const instance = Reflect.construct(target, argArray, newTarget);
-      patchInstance(instance);
+      patchAnthropicInstance(instance);
       return instance as object;
     },
   };
