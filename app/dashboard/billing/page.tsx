@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 
 const PLAN_DETAILS: Record<string, { name: string; color: string; features: string[] }> = {
   free: {
@@ -57,14 +57,22 @@ function StripeComingSoon() {
   );
 }
 
+const CACHE_KEY = "billing";
+
 export default function BillingPage() {
-  const [plan, setPlan] = useState("free");
-  const [payments, setPayments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [plan, setPlan] = useState(cached?.plan || "free");
+  const [payments, setPayments] = useState<any[]>(cached?.payments || []);
+  const [loading, setLoading] = useState(!cached);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "crypto">("card");
-  const supabase = createBrowserSupabaseClient();
+  const fetchDone = useRef(!!cached);
 
   useEffect(() => {
+    if (fetchDone.current) return;
+    fetchDone.current = true;
+
     const fetchBilling = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -75,6 +83,7 @@ export default function BillingPage() {
         const data = await res.json();
         setPlan(data.plan || "free");
         setPayments(data.payments || []);
+        set(CACHE_KEY, { plan: data.plan || "free", payments: data.payments || [] });
       }
       setLoading(false);
     };

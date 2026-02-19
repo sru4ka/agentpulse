@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import Sidebar from "@/components/dashboard/sidebar";
+import { DashboardCacheProvider } from "@/lib/dashboard-cache";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -32,11 +33,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] flex">
-      <Sidebar user={user} />
-      <main className="flex-1 lg:ml-60 p-4 pt-16 lg:pt-8 lg:p-8">
-        {children}
-      </main>
-    </div>
+    <DashboardCacheProvider>
+      <div className="min-h-screen bg-[#0A0A0B] flex">
+        <Sidebar user={user} />
+        <main className="flex-1 lg:ml-60 p-4 pt-16 lg:pt-8 lg:p-8">
+          {children}
+        </main>
+      </div>
+    </DashboardCacheProvider>
   );
 }

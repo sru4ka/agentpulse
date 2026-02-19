@@ -1,14 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEffect, useState, useRef } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
+
+const CACHE_KEY = "alerts";
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { accessToken, supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [alerts, setAlerts] = useState<any[]>(cached?.alerts || []);
+  const [loading, setLoading] = useState(!cached);
   const [creating, setCreating] = useState(false);
   const [alertType, setAlertType] = useState("daily_cost_limit");
   const [threshold, setThreshold] = useState("");
-  const supabase = createBrowserSupabaseClient();
+  const fetchDone = useRef(!!cached);
 
   const fetchAlerts = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -17,11 +22,17 @@ export default function AlertsPage() {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     const data = await res.json();
-    setAlerts(data.alerts || []);
+    const alertList = data.alerts || [];
+    setAlerts(alertList);
+    set(CACHE_KEY, { alerts: alertList });
     setLoading(false);
   };
 
-  useEffect(() => { fetchAlerts(); }, []);
+  useEffect(() => {
+    if (fetchDone.current) return;
+    fetchDone.current = true;
+    fetchAlerts();
+  }, []);
 
   const handleCreate = async () => {
     if (!threshold) return;
@@ -38,6 +49,7 @@ export default function AlertsPage() {
     });
     setThreshold("");
     setCreating(false);
+    fetchDone.current = false;
     fetchAlerts();
   };
 

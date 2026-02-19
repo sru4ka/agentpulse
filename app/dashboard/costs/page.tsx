@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEffect, useState, useRef } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import CostChart from "@/components/charts/cost-chart";
@@ -19,47 +19,42 @@ function toLocalISORange(dateStr: string, end: boolean): string {
   return end ? `${dateStr}T23:59:59${tz}` : `${dateStr}T00:00:00${tz}`;
 }
 
+const CACHE_KEY = "costs";
+
 export default function CostsPage() {
-  const [agents, setAgents] = useState<any[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [events, setEvents] = useState<any[]>([]);
-  const [dailyStats, setDailyStats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("30d"));
-  const supabase = createBrowserSupabaseClient();
+  const { agents, agentsLoaded, supabase, get, set } = useDashboardCache();
 
+  const cached = get(CACHE_KEY);
+  const [selectedAgent, setSelectedAgent] = useState<string>(cached?.selectedAgent || "all");
+  const [events, setEvents] = useState<any[]>(cached?.events || []);
+  const [dailyStats, setDailyStats] = useState<any[]>(cached?.dailyStats || []);
+  const [loading, setLoading] = useState(!cached && !agentsLoaded);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(cached?.dateRange || getDateRange("30d"));
+  const initialFetchDone = useRef(!!cached);
+
+  // Auto-select single agent once agents load
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+    if (!agentsLoaded || !agents) return;
+    if (!cached && agents.length === 1) {
+      setSelectedAgent(agents[0].id);
+    }
+    if (!cached) setLoading(false);
+  }, [agentsLoaded]);
 
-      const { data: agentsData } = await supabase
-        .from("agents")
-        .select("id, name, framework, status")
-        .order("name");
-
-      const agentList = agentsData || [];
-      setAgents(agentList);
-
-      if (agentList.length === 1) {
-        setSelectedAgent(agentList[0].id);
-      }
-
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
-
+  // Fetch data when filters change
+  const prevFilters = useRef({ agent: selectedAgent, range: dateRange });
   useEffect(() => {
-    if (loading && agents.length === 0) return;
+    if (!agentsLoaded || !agents || agents.length === 0) return;
+
+    if (initialFetchDone.current &&
+        prevFilters.current.agent === selectedAgent &&
+        prevFilters.current.range === dateRange) {
+      return;
+    }
+    initialFetchDone.current = true;
+    prevFilters.current = { agent: selectedAgent, range: dateRange };
 
     const fetchAgentData = async () => {
-      if (agents.length === 0) {
-        setEvents([]);
-        setDailyStats([]);
-        return;
-      }
-
       const targetAgentIds = selectedAgent === "all"
         ? agents.map((a) => a.id)
         : [selectedAgent];
@@ -85,11 +80,16 @@ export default function CostsPage() {
           .order("date", { ascending: true }),
       ]);
 
-      setEvents(eventsRes.data || []);
-      setDailyStats(statsRes.data || []);
+      const newEvents = eventsRes.data || [];
+      const newStats = statsRes.data || [];
+      setEvents(newEvents);
+      setDailyStats(newStats);
+      set(CACHE_KEY, { events: newEvents, dailyStats: newStats, selectedAgent, dateRange });
     };
     fetchAgentData();
-  }, [selectedAgent, agents, dateRange]);
+  }, [selectedAgent, agentsLoaded, dateRange]);
+
+  const agentList = agents || [];
 
   // Recalculate costs from events (accurate)
   const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
@@ -145,7 +145,7 @@ export default function CostsPage() {
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Cost Analysis</h1>
         <div className="flex items-center gap-3 flex-wrap">
           <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
-          {agents.length > 1 && (
+          {agentList.length > 1 && (
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
@@ -153,7 +153,7 @@ export default function CostsPage() {
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
             >
               <option value="all">All Agents</option>
-              {agents.map((a) => (
+              {agentList.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>

@@ -1,17 +1,25 @@
 "use client";
-import { useEffect, useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEffect, useState, useRef } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 
 type Mode = "openclaw" | "nodejs" | "python";
 
+const CACHE_KEY = "setup";
+
 export default function SetupPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [profile, setProfile] = useState<any>(cached?.profile || null);
+  const [loading, setLoading] = useState(!cached);
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<Mode>("openclaw");
-  const supabase = createBrowserSupabaseClient();
+  const fetchDone = useRef(!!cached);
 
   useEffect(() => {
+    if (fetchDone.current) return;
+    fetchDone.current = true;
+
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -20,6 +28,7 @@ export default function SetupPage() {
       });
       const data = await res.json();
       setProfile(data.profile);
+      set(CACHE_KEY, { profile: data.profile });
       setLoading(false);
     };
     fetchData();
