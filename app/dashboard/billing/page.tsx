@@ -36,26 +36,7 @@ function CreditCardIcon() {
   );
 }
 
-function StripeComingSoon() {
-  return (
-    <div className="text-center py-6">
-      <div className="w-14 h-14 bg-[#7C3AED]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-        <CreditCardIcon />
-      </div>
-      <h4 className="text-sm font-semibold text-[#FAFAFA] mb-2">Credit Card Payments Coming Soon</h4>
-      <p className="text-xs text-[#A1A1AA] max-w-sm mx-auto mb-4">
-        We&apos;re waiting for Stripe approval to enable credit card payments. In the meantime, you can upgrade instantly using crypto (ETH).
-      </p>
-      <div className="inline-flex items-center gap-2 bg-[#F59E0B]/5 border border-[#F59E0B]/20 text-[#F59E0B] px-4 py-2 rounded-lg text-xs font-medium">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 6v6l4 2" />
-        </svg>
-        Awaiting Stripe approval
-      </div>
-    </div>
-  );
-}
+const STRIPE_PAYMENT_LINK = "https://buy.stripe.com/aFaeVc9eeeeign35enfnO00";
 
 const CACHE_KEY = "billing";
 
@@ -67,7 +48,17 @@ export default function BillingPage() {
   const [payments, setPayments] = useState<any[]>(cached?.payments || []);
   const [loading, setLoading] = useState(!cached);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "crypto">("card");
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isCanceled, setIsCanceled] = useState(false);
   const fetchDone = useRef(!!cached);
+
+  // Read success/canceled from URL on mount (avoid useSearchParams to prevent SSR bailout)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setIsSuccess(params.get("success") === "true");
+    setIsCanceled(params.get("canceled") === "true");
+  }, []);
 
   useEffect(() => {
     if (fetchDone.current) return;
@@ -76,6 +67,7 @@ export default function BillingPage() {
     const fetchBilling = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+      setUserEmail(session.user?.email || "");
       const res = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -104,6 +96,32 @@ export default function BillingPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold text-[#FAFAFA]">Billing</h1>
+
+      {isSuccess && (
+        <div className="rounded-xl bg-[#10B981]/10 border border-[#10B981]/25 p-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#10B981]/15 flex items-center justify-center flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8.5L6.5 12L13 4" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-[#10B981]">Payment successful!</p>
+            <p className="text-xs text-[#A1A1AA]">Your 7-day free trial has started. You won&apos;t be charged until the trial ends.</p>
+          </div>
+        </div>
+      )}
+
+      {isCanceled && (
+        <div className="rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 p-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#F59E0B]/15 flex items-center justify-center flex-shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="#F59E0B" strokeWidth="1.5" />
+              <path d="M8 5v3.5M8 10.5v.5" stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-sm text-[#F59E0B]">Checkout was canceled. You can try again anytime.</p>
+        </div>
+      )}
 
       {/* Current Plan */}
       <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6">
@@ -171,7 +189,28 @@ export default function BillingPage() {
           </div>
 
           {paymentMethod === "card" && (
-            <StripeComingSoon />
+            <div className="text-center py-6">
+              <div className="w-14 h-14 bg-[#7C3AED]/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <CreditCardIcon />
+              </div>
+              <h4 className="text-sm font-semibold text-[#FAFAFA] mb-1">AgentPulse Pro</h4>
+              <div className="text-2xl font-bold text-[#FAFAFA] mb-1">$29<span className="text-sm font-normal text-[#A1A1AA]">/month</span></div>
+              <p className="text-xs text-[#10B981] font-medium mb-4">Includes 7-day free trial</p>
+              <ul className="text-xs text-[#A1A1AA] space-y-1.5 mb-5 max-w-xs mx-auto text-left">
+                {PLAN_DETAILS.pro.features.map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <span className="text-[#7C3AED]">&#10003;</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={`${STRIPE_PAYMENT_LINK}${userEmail ? `?prefilled_email=${encodeURIComponent(userEmail)}` : ""}`}
+                className="inline-block bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+              >
+                Start Free Trial
+              </a>
+              <p className="text-[10px] text-[#A1A1AA] mt-3">Cancel anytime. No charge for 7 days.</p>
+            </div>
           )}
 
           {paymentMethod === "crypto" && (
