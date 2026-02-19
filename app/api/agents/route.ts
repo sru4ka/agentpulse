@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { authenticateRequest } from '@/lib/api-auth'
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await authenticateRequest(request)
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized. Provide X-API-Key header or Bearer token.' }, { status: 401 })
     }
-    const token = authHeader.replace('Bearer ', '')
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    )
-    const { data: { user } } = await supabase.auth.getUser(token)
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const supabase = createServerSupabaseClient()
 
     const { data: agents } = await supabase
       .from('agents')
       .select('*')
+      .eq('user_id', auth.userId)
       .order('last_seen', { ascending: false })
 
     return NextResponse.json({ agents: agents || [] })

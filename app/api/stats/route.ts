@@ -1,44 +1,33 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { authenticateRequest } from '@/lib/api-auth'
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await authenticateRequest(request)
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized. Provide X-API-Key header or Bearer token.' }, { status: 401 })
     }
 
-    const token = authHeader.replace('Bearer ', '')
-
-    // Create client with user's token for RLS
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    )
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const supabase = createServerSupabaseClient()
 
     // Get user profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', auth.userId)
       .single()
 
     // Get agents for this user
     const { data: agents } = await supabase
       .from('agents')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', auth.userId)
       .order('last_seen', { ascending: false })
 
     const agentIds = (agents || []).map((a: any) => a.id)
 
-    // Get today's stats (filtered to user's agents)
+    // Get today's stats
     const now = new Date()
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     let todayStats: any[] = []
@@ -51,7 +40,7 @@ export async function GET(request: Request) {
       todayStats = data || []
     }
 
-    // Get ALL stats for all-time totals (filtered to user's agents)
+    // Get ALL stats for all-time totals
     let allStats: any[] = []
     if (agentIds.length > 0) {
       const { data } = await supabase
@@ -62,13 +51,13 @@ export async function GET(request: Request) {
       allStats = data || []
     }
 
-    // Get last 30 days stats for charts (subset of allStats)
+    // Last 30 days for charts
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     const thirtyDaysAgoStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`
     const recentStats = allStats.filter((s: any) => s.date >= thirtyDaysAgoStr)
 
-    // Get recent events (last 20, filtered to user's agents)
+    // Recent events
     let recentEvents: any[] = []
     if (agentIds.length > 0) {
       const { data } = await supabase
@@ -99,7 +88,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      profile,
+      profile: { plan: profile?.plan || 'free' },
       agents: agents || [],
       today: {
         cost: todayCost,
