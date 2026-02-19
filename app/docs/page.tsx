@@ -57,7 +57,38 @@ export default function DocsPage() {
             <span className="w-8 h-8 bg-[#7C3AED] rounded-lg flex items-center justify-center text-white text-sm font-bold">2</span>
             Install the Plugin
           </h2>
+
+          {/* Node.js / npm */}
+          <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 space-y-4 mb-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-[#10B981]/15 text-[#10B981] text-xs font-bold px-2.5 py-1 rounded-full">Node.js</span>
+              <span className="text-xs text-[#A1A1AA]">npm package</span>
+            </div>
+            <p className="text-[#A1A1AA]">Install via npm:</p>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4">
+              <code className="text-sm text-[#10B981]">npm install @agentpulse/agentpulse</code>
+            </div>
+            <p className="text-[#A1A1AA]">Then add to the top of your app:</p>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4 space-y-1">
+              <code className="text-sm text-[#FAFAFA] block">{`const agentpulse = require('@agentpulse/agentpulse');`}</code>
+              <code className="text-sm text-[#FAFAFA] block">{`agentpulse.init({ apiKey: 'ap_...', agentName: 'my-bot' });`}</code>
+              <code className="text-sm text-[#FAFAFA] block">{`agentpulse.autoInstrument();`}</code>
+              <code className="text-sm text-[#A1A1AA] block mt-2">{`// All OpenAI / Anthropic calls are now tracked automatically`}</code>
+            </div>
+            <p className="text-[#A1A1AA]">Or install globally for the CLI:</p>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-4 space-y-1">
+              <code className="text-sm text-[#10B981] block">sudo npm install -g @agentpulse/agentpulse</code>
+              <code className="text-sm text-[#10B981] block">agentpulse init</code>
+              <code className="text-sm text-[#10B981] block">agentpulse start -d</code>
+            </div>
+          </div>
+
+          {/* Python / pipx */}
           <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-bold px-2.5 py-1 rounded-full">Python</span>
+              <span className="text-xs text-[#A1A1AA]">pipx / pip</span>
+            </div>
             <p className="text-[#A1A1AA]">
               SSH into your server where OpenClaw is running, then run this one-liner to install AgentPulse:
             </p>
@@ -255,6 +286,88 @@ export default function DocsPage() {
   ]
 }`}</pre>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Troubleshooting */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-bold text-[#FAFAFA] mb-6">Troubleshooting</h2>
+
+          {/* Node.js */}
+          <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 space-y-3 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-[#10B981]/15 text-[#10B981] text-xs font-bold px-2.5 py-1 rounded-full">Node.js</span>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">AgentPulse is not a constructor</p>
+              <p className="text-xs text-[#A1A1AA]">
+                The SDK exports functions, not a class. Use <code className="text-[#7C3AED] font-mono">agentpulse.init()</code> not <code className="text-[#7C3AED] font-mono">new AgentPulse()</code>.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">Cannot find module &apos;@agentpulse/agentpulse&apos;</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Run <code className="text-[#7C3AED] font-mono">npm install @agentpulse/agentpulse</code> in your project directory.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">EACCES: permission denied (global install)</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Use <code className="text-[#7C3AED] font-mono">sudo npm install -g @agentpulse/agentpulse</code>.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">No events appearing on dashboard</p>
+              <ul className="text-xs text-[#A1A1AA] space-y-1 list-disc list-inside">
+                <li>Make sure <code className="text-[#7C3AED] font-mono">init()</code> is called before <code className="text-[#7C3AED] font-mono">autoInstrument()</code></li>
+                <li>Verify your API key is correct</li>
+                <li>Events are batched — wait up to 10 seconds for them to appear</li>
+                <li>Run <code className="text-[#7C3AED] font-mono">agentpulse test</code> to confirm connectivity</li>
+              </ul>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found (after npm -g install)</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Open a new terminal. Check that <code className="text-[#7C3AED] font-mono">npm root -g</code> is in your PATH.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">Upgrade to latest version</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Run <code className="text-[#7C3AED] font-mono">npm update @agentpulse/agentpulse</code> or <code className="text-[#7C3AED] font-mono">sudo npm update -g @agentpulse/agentpulse</code> for global.
+              </p>
+            </div>
+          </div>
+
+          {/* Python */}
+          <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-[#3B82F6]/15 text-[#3B82F6] text-xs font-bold px-2.5 py-1 rounded-full">Python</span>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">agentpulse: command not found</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Run <code className="text-[#7C3AED] font-mono">source ~/.bashrc</code> or open a new terminal. Check <code className="text-[#7C3AED] font-mono">pipx list</code> and ensure <code className="text-[#FAFAFA]">~/.local/bin</code> is in your PATH.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">Dashboard shows 0 events</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Run <code className="text-[#7C3AED] font-mono">agentpulse status</code> to confirm it&apos;s running, then <code className="text-[#7C3AED] font-mono">agentpulse test</code> to verify connectivity.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">API key invalid / 401 error</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Re-run <code className="text-[#7C3AED] font-mono">agentpulse init</code> with a fresh key from your Settings page.
+              </p>
+            </div>
+            <div className="bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg p-3">
+              <p className="text-sm text-[#FAFAFA] font-medium mb-1">Upgrade to latest version</p>
+              <p className="text-xs text-[#A1A1AA]">
+                Run <code className="text-[#7C3AED] font-mono">pipx upgrade agentpulse</code> then <code className="text-[#7C3AED] font-mono">agentpulse stop && agentpulse start -d</code>.
+              </p>
             </div>
           </div>
         </section>

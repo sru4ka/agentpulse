@@ -48,6 +48,31 @@ AgentPulse is a **real-time monitoring and observability platform** for AI agent
 
 ## Quick Start
 
+### Option A: Node.js (npm)
+
+```bash
+npm install @agentpulse/agentpulse
+```
+
+Then add to the top of your app:
+
+```js
+const agentpulse = require('@agentpulse/agentpulse');
+agentpulse.init({ apiKey: 'ap_...', agentName: 'my-bot' });
+agentpulse.autoInstrument();
+// All OpenAI / Anthropic calls are now tracked automatically
+```
+
+Or install globally for the CLI:
+
+```bash
+sudo npm install -g @agentpulse/agentpulse
+agentpulse init
+agentpulse start -d
+```
+
+### Option B: Python (pipx)
+
 SSH into your server and run:
 
 ```bash
@@ -63,6 +88,28 @@ That's it. Sign up at [agentpulses.com/signup](https://agentpulses.com/signup) t
 > **Prompt capture:** The `enable-proxy` step sets up a local proxy (port 8787) that captures exact prompts and responses. Without it, you only get token counts and costs. After enabling, restart agentpulse and run `source ~/.bashrc` in any open terminals.
 
 > **Important:** Do NOT use `pip install agentpulse` — that's an unrelated PyPI package. Always install from the git URL above.
+
+## Troubleshooting
+
+### Node.js (npm)
+
+| Problem | Solution |
+|---------|----------|
+| `AgentPulse is not a constructor` | The SDK exports functions, not a class. Use `agentpulse.init()` not `new AgentPulse()` |
+| `Cannot find module '@agentpulse/agentpulse'` | Run `npm install @agentpulse/agentpulse` in your project |
+| `EACCES: permission denied` on global install | Use `sudo npm install -g @agentpulse/agentpulse` |
+| No events on dashboard | Make sure `init()` is called before `autoInstrument()`, and your API key is correct |
+| `agentpulse: command not found` after global install | Open a new terminal, or check `npm root -g` is in your PATH |
+| Streaming calls not tracked | Streaming responses are not tracked by `autoInstrument()` — use `agentpulse.track(response)` manually |
+
+### Python (pipx)
+
+| Problem | Solution |
+|---------|----------|
+| `agentpulse: command not found` | Run `source ~/.bashrc` or open a new terminal. Check `pipx list` |
+| Dashboard shows 0 events | Run `agentpulse status` to confirm it's running, then `agentpulse test` |
+| API key invalid / 401 | Re-run `agentpulse init` with a fresh key from Settings |
+| Upgrade to latest | `pipx upgrade agentpulse` then `agentpulse stop && agentpulse start -d` |
 
 ## Supported Models & Providers
 
@@ -86,6 +133,7 @@ AgentPulse extracts exact token counts and costs from API responses. Any model t
 
 | Framework | Status | Integration |
 |-----------|--------|-------------|
+| Any Node.js app | Full support | npm SDK (auto-instrument) |
 | Any Python agent | Full support | Python SDK (auto-instrument) |
 | OpenClaw | Full support | SDK or Daemon |
 | LangChain | Full support | Python SDK |
@@ -97,7 +145,7 @@ AgentPulse extracts exact token counts and costs from API responses. Any model t
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Your Agent  │────▶│  AgentPulse SDK  │────▶│  AgentPulse     │
-│  (any        │     │  (Python)        │     │  Dashboard      │
+│  (any        │     │  (Python / npm)  │     │  Dashboard      │
 │   framework) │     │                  │     │  (Next.js)      │
 │              │     │  Intercepts LLM  │     │                 │
 │  OpenAI /    │     │  SDK calls       │     │  Real-time      │
@@ -110,7 +158,7 @@ AgentPulse extracts exact token counts and costs from API responses. Any model t
 
 - **Frontend:** Next.js 16, React 19, Tailwind CSS 4, Recharts
 - **Backend:** Next.js API routes, Supabase (PostgreSQL + Auth)
-- **Plugin:** Python 3.10+, auto-instruments OpenAI & Anthropic SDKs
+- **Plugin:** Python 3.10+ or Node.js 18+ (`@agentpulse/agentpulse`), auto-instruments OpenAI & Anthropic SDKs
 - **Payments:** Stripe (credit card), Ethereum (crypto)
 - **Hosting:** Vercel
 
