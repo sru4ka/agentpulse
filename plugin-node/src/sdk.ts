@@ -726,10 +726,8 @@ function extractPathFromArgs(args: any[]): string | undefined {
   return undefined;
 }
 
-function patchTransport(transport: typeof http | typeof https, origTransport: { request: typeof http.request; get: typeof http.get }, name: string): void {
-  const origRequest = origTransport.request;
-
-  function patchedRequest(this: any, ...args: any[]): http.ClientRequest {
+function makePatchedRequest(origRequest: typeof http.request): (...args: any[]) => http.ClientRequest {
+  return function patchedRequest(this: any, ...args: any[]): http.ClientRequest {
     const hostname = extractHostFromArgs(args);
     const provider = matchLLMHost(hostname || "");
 
@@ -823,39 +821,36 @@ function patchTransport(transport: typeof http | typeof https, origTransport: { 
     });
 
     return req;
-  }
-
-  // Node.js v22+ makes http.request/https.request getter-only.
-  // Use Object.defineProperty to override, falling back to direct assignment.
-  try {
-    Object.defineProperty(transport, "request", {
-      value: patchedRequest,
-      writable: true,
-      configurable: true,
-      enumerable: true,
-    });
-  } catch {
-    try {
-      (transport as any).request = patchedRequest;
-    } catch {
-      // Cannot patch this transport — skip silently
-    }
-  }
+  };
 }
 
 function patchHTTP(): void {
   if (_patched.has("http")) return;
 
-  // IMPORTANT: We must patch the REAL module objects, not the TypeScript
-  // __importStar wrappers (which have non-configurable getter-only properties).
-  // Use require() to get the actual module objects.
+  // Node.js v22+ makes http/https module properties read-only (getter-only,
+  // non-configurable). We cannot mutate the module objects at all.
+  // Instead, replace the module in require.cache with a Proxy that intercepts
+  // property access to 'request' and returns our patched version.
+  // This way, any code that does require('http').request(...) gets our patch.
   try {
-    const realHttps = require("https");
-    const realHttp = require("http");
-    patchTransport(realHttps, _origHttps, "https");
-    patchTransport(realHttp, _origHttp, "http");
+    const Module = require("module");
+    for (const modName of ["http", "https"]) {
+      const origTransport = modName === "https" ? _origHttps : _origHttp;
+      const patchedRequest = makePatchedRequest(origTransport.request);
+      const resolvedPath = require.resolve(modName);
+      const cacheEntry = Module._cache?.[resolvedPath] || require.cache[resolvedPath];
+      if (!cacheEntry) continue;
+
+      const origExports = cacheEntry.exports;
+      cacheEntry.exports = new Proxy(origExports, {
+        get(target: any, prop: string | symbol, receiver: any) {
+          if (prop === "request") return patchedRequest;
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+    }
   } catch {
-    // If patching fails entirely, skip HTTP interception
+    // If Proxy-based patching fails, skip HTTP interception silently
   }
 
   _patched.add("http");
