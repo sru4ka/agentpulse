@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 import { useEventStream } from "@/lib/use-event-stream";
 import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
@@ -21,18 +21,20 @@ function toLocalISORange(dateStr: string, end: boolean): string {
   return end ? `${dateStr}T23:59:59${tz}` : `${dateStr}T00:00:00${tz}`;
 }
 
-export default function DashboardPage() {
-  const [agents, setAgents] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
-  const [dailyStats, setDailyStats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [liveConnected, setLiveConnected] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const supabase = createBrowserSupabaseClient();
+const CACHE_KEY = "dashboard";
 
-  // Shared fetch logic for events + stats
+export default function DashboardPage() {
+  const { agents, agentsLoaded, accessToken, supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [events, setEvents] = useState<any[]>(cached?.events || []);
+  const [dailyStats, setDailyStats] = useState<any[]>(cached?.dailyStats || []);
+  const [loading, setLoading] = useState(!cached);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(cached?.dateRange || getDateRange("today"));
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const initialFetchDone = useRef(!!cached);
+
   const fetchEventsAndStats = async (agentIds: string[], range: DateRangeResult) => {
     const fromTs = toLocalISORange(range.from, false);
     const toTs = toLocalISORange(range.to, true);
@@ -65,58 +67,36 @@ export default function DashboardPage() {
       setFetchError(null);
     }
 
-    setEvents(eventsRes.data || []);
-    setDailyStats(statsRes.data || []);
+    const newEvents = eventsRes.data || [];
+    const newStats = statsRes.data || [];
+    setEvents(newEvents);
+    setDailyStats(newStats);
+    set(CACHE_KEY, { events: newEvents, dailyStats: newStats, dateRange: range });
   };
 
-  // Initial load — get agents + session + data in one shot
+  // Fetch data once agents are ready
   useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      setAccessToken(session.access_token);
-
-      const { data: agentsData, error: agentsError } = await supabase
-        .from("agents")
-        .select("*")
-        .order("last_seen", { ascending: false });
-
-      if (agentsError) {
-        console.error("Agents query error:", agentsError);
-        setFetchError(`Failed to load agents: ${agentsError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      const agentList = agentsData || [];
-      setAgents(agentList);
-
-      // Fetch events + stats immediately (no waterfall)
-      if (agentList.length > 0) {
-        const agentIds = agentList.map((a: any) => a.id);
-        await fetchEventsAndStats(agentIds, dateRange);
-      }
-
-      setLoading(false);
-    };
-    init();
-  }, []);
-
-  // Refetch when date range changes (but not on initial load)
-  const [initialLoaded, setInitialLoaded] = useState(false);
-  useEffect(() => {
-    if (!accessToken || agents.length === 0) {
-      if (accessToken) setInitialLoaded(true);
+    if (!agentsLoaded || !agents || agents.length === 0) {
+      if (agentsLoaded) setLoading(false);
       return;
     }
-    if (!initialLoaded) {
-      setInitialLoaded(true);
-      return;
-    }
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+
+    const agentIds = agents.map((a: any) => a.id);
+    fetchEventsAndStats(agentIds, dateRange).then(() => setLoading(false));
+  }, [agentsLoaded]);
+
+  // Refetch when date range changes (after initial load)
+  const prevRange = useRef(dateRange);
+  useEffect(() => {
+    if (!agentsLoaded || !agents || agents.length === 0) return;
+    if (prevRange.current === dateRange) return;
+    prevRange.current = dateRange;
 
     const agentIds = agents.map((a) => a.id);
     fetchEventsAndStats(agentIds, dateRange);
-  }, [accessToken, agents, dateRange]);
+  }, [dateRange, agentsLoaded]);
 
   // Real-time updates via SSE
   const onEvents = useCallback((newEvents: any[]) => {
@@ -164,6 +144,8 @@ export default function DashboardPage() {
   events.forEach((e) => {
     agentCosts[e.agent_id] = (agentCosts[e.agent_id] || 0) + recalculateEventCost(e);
   });
+
+  const agentList = agents || [];
 
   if (loading) {
     return (
@@ -214,7 +196,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Empty state for filtered view — suggest wider range */}
-      {!fetchError && agents.length > 0 && events.length === 0 && dateRange.range === "today" && (
+      {!fetchError && agentList.length > 0 && events.length === 0 && dateRange.range === "today" && (
         <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 text-center">
           <p className="text-[#A1A1AA] text-sm mb-3">No events recorded today. Your agents may not have sent events yet.</p>
           <button
@@ -243,11 +225,11 @@ export default function DashboardPage() {
       <Recommendations events={events} dailyStats={dailyStats} />
 
       {/* Agents */}
-      {agents.length > 0 && (
+      {agentList.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-[#FAFAFA] mb-4">Active Agents</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {agents.map((agent: any) => (
+            {agentList.map((agent: any) => (
               <AgentCard key={agent.id} agent={agent} todayCost={agentCosts[agent.id] || 0} />
             ))}
           </div>
@@ -255,7 +237,7 @@ export default function DashboardPage() {
       )}
 
       {/* Empty state */}
-      {agents.length === 0 && (
+      {agentList.length === 0 && (
         <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-12 text-center">
           <div className="text-4xl mb-4">📡</div>
           <h3 className="text-lg font-semibold text-[#FAFAFA] mb-2">No agents connected yet</h3>

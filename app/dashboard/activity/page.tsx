@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 import StatCard from "@/components/dashboard/stat-card";
 import EventLog from "@/components/dashboard/event-log";
 import CostChart from "@/components/charts/cost-chart";
@@ -12,62 +12,50 @@ import { formatCost, formatNumber, formatLatency } from "@/lib/utils";
 
 type Tab = "events" | "costs" | "traces";
 
+const CACHE_KEY = "activity";
+
 export default function ActivityPage() {
   const searchParams = useSearchParams();
   const agentParam = searchParams.get("agent");
+  const { agents, agentsLoaded, supabase, get, set } = useDashboardCache();
 
-  const [tab, setTab] = useState<Tab>("events");
-  const [agents, setAgents] = useState<any[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string>(agentParam || "all");
-  const [events, setEvents] = useState<any[]>([]);
-  const [dailyStats, setDailyStats] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
-  const supabase = createBrowserSupabaseClient();
+  const cached = get(CACHE_KEY);
+  const [tab, setTab] = useState<Tab>(cached?.tab || "events");
+  const [selectedAgent, setSelectedAgent] = useState<string>(cached?.selectedAgent || agentParam || "all");
+  const [events, setEvents] = useState<any[]>(cached?.events || []);
+  const [dailyStats, setDailyStats] = useState<any[]>(cached?.dailyStats || []);
+  const [loading, setLoading] = useState(!cached && !agentsLoaded);
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? true);
+  const [page, setPage] = useState(cached?.page || 0);
+  const initialFetchDone = useRef(!!cached);
 
   const PAGE_SIZE = 100;
 
-  // Initial data fetch
+  // Auto-select agent once agents load
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      // Fetch agents
-      const { data: agentsData } = await supabase
-        .from("agents")
-        .select("id, name, framework, status, last_seen")
-        .order("name");
-
-      const agentList = agentsData || [];
-      setAgents(agentList);
-
-      // If URL has ?agent=, use that. If only 1 agent, auto-select it.
-      if (agentParam && agentList.some((a) => a.id === agentParam)) {
+    if (!agentsLoaded || !agents) return;
+    if (!cached) {
+      if (agentParam && agents.some((a) => a.id === agentParam)) {
         setSelectedAgent(agentParam);
-      } else if (agentList.length === 1) {
-        setSelectedAgent(agentList[0].id);
+      } else if (agents.length === 1) {
+        setSelectedAgent(agents[0].id);
       }
-
       setLoading(false);
-    };
-    fetchData();
-  }, []);
+    }
+  }, [agentsLoaded]);
 
   // Fetch events + stats when agent selection changes
+  const prevAgent = useRef(selectedAgent);
   useEffect(() => {
-    if (loading && agents.length === 0) return;
+    if (!agentsLoaded || !agents || agents.length === 0) return;
+
+    if (initialFetchDone.current && prevAgent.current === selectedAgent) return;
+    initialFetchDone.current = true;
+    prevAgent.current = selectedAgent;
 
     const fetchAgentData = async () => {
       setPage(0);
       setHasMore(true);
-
-      if (agents.length === 0) {
-        setEvents([]);
-        setDailyStats([]);
-        return;
-      }
 
       const targetAgentIds = selectedAgent === "all"
         ? agents.map((a) => a.id)
@@ -82,8 +70,10 @@ export default function ActivityPage() {
         .range(0, PAGE_SIZE - 1);
 
       const { data: eventsData } = await query;
-      setEvents(eventsData || []);
-      setHasMore((eventsData || []).length >= PAGE_SIZE);
+      const newEvents = eventsData || [];
+      const newHasMore = newEvents.length >= PAGE_SIZE;
+      setEvents(newEvents);
+      setHasMore(newHasMore);
 
       // Fetch daily stats
       const { data: statsData } = await supabase
@@ -93,12 +83,15 @@ export default function ActivityPage() {
         .order("date", { ascending: true })
         .limit(90);
 
-      setDailyStats(statsData || []);
+      const newStats = statsData || [];
+      setDailyStats(newStats);
+      set(CACHE_KEY, { events: newEvents, dailyStats: newStats, hasMore: newHasMore, page: 0, selectedAgent, tab });
     };
     fetchAgentData();
-  }, [selectedAgent, agents]);
+  }, [selectedAgent, agentsLoaded]);
 
   const loadMore = async () => {
+    if (!agents || agents.length === 0) return;
     const nextPage = page + 1;
     const from = nextPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -205,9 +198,10 @@ export default function ActivityPage() {
     { id: "traces", label: "Traces" },
   ];
 
+  const agentList = agents || [];
   const selectedAgentName = selectedAgent === "all"
     ? "All Agents"
-    : agents.find((a) => a.id === selectedAgent)?.name || "Agent";
+    : agentList.find((a) => a.id === selectedAgent)?.name || "Agent";
 
   return (
     <div className="space-y-6">
@@ -215,7 +209,7 @@ export default function ActivityPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           {/* Agent selector */}
-          {agents.length > 1 ? (
+          {agentList.length > 1 ? (
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
@@ -223,15 +217,15 @@ export default function ActivityPage() {
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
             >
               <option value="all">All Agents</option>
-              {agents.map((a) => (
+              {agentList.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
-          ) : agents.length === 1 ? (
+          ) : agentList.length === 1 ? (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-              <h1 className="text-lg font-bold text-[#FAFAFA]">{agents[0].name}</h1>
-              <span className="text-xs bg-[#7C3AED]/15 text-[#7C3AED] px-2 py-0.5 rounded-md">{agents[0].framework}</span>
+              <h1 className="text-lg font-bold text-[#FAFAFA]">{agentList[0].name}</h1>
+              <span className="text-xs bg-[#7C3AED]/15 text-[#7C3AED] px-2 py-0.5 rounded-md">{agentList[0].framework}</span>
             </div>
           ) : (
             <h1 className="text-lg font-bold text-[#FAFAFA]">Activity</h1>

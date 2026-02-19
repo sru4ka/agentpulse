@@ -1,22 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useDashboardCache } from "@/lib/dashboard-cache";
+
+const CACHE_KEY = "settings";
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { agents, agentsLoaded, supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [profile, setProfile] = useState<any>(cached?.profile || null);
+  const [loading, setLoading] = useState(!cached);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [regenError, setRegenError] = useState("");
   const router = useRouter();
-  const supabase = createBrowserSupabaseClient();
+  const fetchDone = useRef(!!cached);
 
   useEffect(() => {
+    if (fetchDone.current) return;
+    fetchDone.current = true;
+
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -25,7 +32,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       setProfile(data.profile);
-      setAgents(data.agents || []);
+      set(CACHE_KEY, { profile: data.profile });
       setLoading(false);
     };
     fetchData();
@@ -63,7 +70,9 @@ export default function SettingsPage() {
         return;
       }
       if (data.api_key) {
-        setProfile({ ...profile, api_key: data.api_key });
+        const newProfile = { ...profile, api_key: data.api_key };
+        setProfile(newProfile);
+        set(CACHE_KEY, { profile: newProfile });
         setShowKey(true);
       }
     } catch (err: any) {
@@ -84,6 +93,8 @@ export default function SettingsPage() {
     team: "#F59E0B",
     enterprise: "#10B981",
   };
+
+  const agentList = agents || [];
 
   if (loading) {
     return (
@@ -191,11 +202,11 @@ export default function SettingsPage() {
       {/* Connected Agents */}
       <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6">
         <h3 className="text-lg font-semibold text-[#FAFAFA] mb-4">Connected Agents</h3>
-        {agents.length === 0 ? (
+        {agentList.length === 0 ? (
           <p className="text-sm text-[#A1A1AA]">No agents connected yet.</p>
         ) : (
           <div className="space-y-2">
-            {agents.map((agent: any) => (
+            {agentList.map((agent: any) => (
               <div key={agent.id} className="flex justify-between items-center py-2 border-b border-[#2A2A2D]/50 last:border-0">
                 <div>
                   <span className="text-sm text-[#FAFAFA]">{agent.name}</span>

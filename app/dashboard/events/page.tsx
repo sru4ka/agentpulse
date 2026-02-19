@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { useEffect, useState, useRef } from "react";
+import { useDashboardCache } from "@/lib/dashboard-cache";
 import { recalculateEventCost } from "@/lib/pricing";
 import StatCard from "@/components/dashboard/stat-card";
 import EventLog from "@/components/dashboard/event-log";
@@ -16,51 +16,48 @@ function toLocalISORange(dateStr: string, end: boolean): string {
   return end ? `${dateStr}T23:59:59${tz}` : `${dateStr}T00:00:00${tz}`;
 }
 
+const CACHE_KEY = "events";
+
 export default function EventsPage() {
-  const [agents, setAgents] = useState<any[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
-  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
-  const supabase = createBrowserSupabaseClient();
+  const { agents, agentsLoaded, supabase, get, set } = useDashboardCache();
+
+  const cached = get(CACHE_KEY);
+  const [selectedAgent, setSelectedAgent] = useState<string>(cached?.selectedAgent || "all");
+  const [events, setEvents] = useState<any[]>(cached?.events || []);
+  const [loading, setLoading] = useState(!cached && !agentsLoaded);
+  const [hasMore, setHasMore] = useState(cached?.hasMore ?? true);
+  const [page, setPage] = useState(cached?.page || 0);
+  const [dateRange, setDateRange] = useState<DateRangeResult>(cached?.dateRange || getDateRange("today"));
+  const initialFetchDone = useRef(!!cached);
 
   const PAGE_SIZE = 100;
 
+  // Auto-select single agent once agents load
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+    if (!agentsLoaded || !agents) return;
+    if (!cached && agents.length === 1) {
+      setSelectedAgent(agents[0].id);
+    }
+    if (!cached) setLoading(false);
+  }, [agentsLoaded]);
 
-      const { data: agentsData } = await supabase
-        .from("agents")
-        .select("id, name, framework, status")
-        .order("name");
-
-      const agentList = agentsData || [];
-      setAgents(agentList);
-
-      if (agentList.length === 1) {
-        setSelectedAgent(agentList[0].id);
-      }
-
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
-
+  // Fetch events when filters change
+  const prevFilters = useRef({ agent: selectedAgent, range: dateRange });
   useEffect(() => {
-    if (loading && agents.length === 0) return;
+    if (!agentsLoaded || !agents || agents.length === 0) return;
+
+    // Skip if this is initial mount with cached data and filters haven't changed
+    if (initialFetchDone.current &&
+        prevFilters.current.agent === selectedAgent &&
+        prevFilters.current.range === dateRange) {
+      return;
+    }
+    initialFetchDone.current = true;
+    prevFilters.current = { agent: selectedAgent, range: dateRange };
 
     const fetchEvents = async () => {
       setPage(0);
       setHasMore(true);
-
-      if (agents.length === 0) {
-        setEvents([]);
-        return;
-      }
 
       const targetAgentIds = selectedAgent === "all"
         ? agents.map((a) => a.id)
@@ -78,13 +75,17 @@ export default function EventsPage() {
         .order("timestamp", { ascending: false })
         .range(0, PAGE_SIZE - 1);
 
-      setEvents(eventsData || []);
-      setHasMore((eventsData || []).length >= PAGE_SIZE);
+      const newEvents = eventsData || [];
+      const newHasMore = newEvents.length >= PAGE_SIZE;
+      setEvents(newEvents);
+      setHasMore(newHasMore);
+      set(CACHE_KEY, { events: newEvents, hasMore: newHasMore, page: 0, selectedAgent, dateRange });
     };
     fetchEvents();
-  }, [selectedAgent, agents, dateRange]);
+  }, [selectedAgent, agentsLoaded, dateRange]);
 
   const loadMore = async () => {
+    if (!agents || agents.length === 0) return;
     const nextPage = page + 1;
     const from = nextPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -93,8 +94,8 @@ export default function EventsPage() {
       ? agents.map((a) => a.id)
       : [selectedAgent];
 
-    const fromTs = dateRange.from + "T00:00:00";
-    const toTs = dateRange.to + "T23:59:59";
+    const fromTs = toLocalISORange(dateRange.from, false);
+    const toTs = toLocalISORange(dateRange.to, true);
 
     const { data: moreEvents } = await supabase
       .from("events")
@@ -106,14 +107,18 @@ export default function EventsPage() {
       .range(from, to);
 
     if (moreEvents && moreEvents.length > 0) {
-      setEvents((prev) => [...prev, ...moreEvents]);
+      const updated = [...events, ...moreEvents];
+      const newHasMore = moreEvents.length >= PAGE_SIZE;
+      setEvents(updated);
       setPage(nextPage);
-      setHasMore(moreEvents.length >= PAGE_SIZE);
+      setHasMore(newHasMore);
+      set(CACHE_KEY, { events: updated, hasMore: newHasMore, page: nextPage, selectedAgent, dateRange });
     } else {
       setHasMore(false);
     }
   };
 
+  const agentList = agents || [];
   const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
   const totalTokens = events.reduce((s, e) => s + (e.total_tokens || 0), 0);
   const errorCount = events.filter((e) => e.status === "error" || e.status === "rate_limit").length;
@@ -152,7 +157,7 @@ export default function EventsPage() {
         <h1 className="text-2xl font-bold text-[#FAFAFA]">Events</h1>
         <div className="flex items-center gap-3 flex-wrap">
           <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
-          {agents.length > 1 && (
+          {agentList.length > 1 && (
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
@@ -160,7 +165,7 @@ export default function EventsPage() {
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23A1A1AA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
             >
               <option value="all">All Agents</option>
-              {agents.map((a) => (
+              {agentList.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
