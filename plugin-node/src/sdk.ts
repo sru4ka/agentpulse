@@ -267,14 +267,22 @@ export function shutdown(): void {
 
 // ── Manual tracking ──
 
-export function track(response: any, options?: { provider?: string; latencyMs?: number; taskContext?: string }): void {
+export function track(response: any, options?: { provider?: string; latencyMs?: number; taskContext?: string; messages?: Array<{ role: string; content: string }> }): void {
   if (!_initialized) {
     console.warn("AgentPulse: call agentpulse.init() before tracking");
     return;
   }
 
   const event = extractEventFromResponse(response, options?.provider, options?.latencyMs, options?.taskContext);
-  if (event) addEvent(event);
+  if (event) {
+    if (options?.messages) {
+      event.prompt_messages = options.messages.map(m => ({
+        role: m.role || "user",
+        content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+      }));
+    }
+    addEvent(event);
+  }
 }
 
 // ── Response extraction ──
@@ -314,8 +322,9 @@ function extractEventFromResponse(
 
   const cost = estimateCost(model, inputTokens, outputTokens);
 
-  // Extract response text
+  // Extract response text and tools_used
   let responseText: string | null = null;
+  const toolsUsed: string[] = [];
 
   // OpenAI format
   const choices = data.choices;
@@ -323,21 +332,35 @@ function extractEventFromResponse(
     const msg = choices[0]?.message;
     if (msg && typeof msg === "object") {
       responseText = msg.content || null;
+      // Extract tool calls
+      if (Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          if (tc?.function?.name) toolsUsed.push(tc.function.name);
+        }
+      }
     }
   }
 
   // Anthropic format
   const contentBlocks = data.content;
-  if (Array.isArray(contentBlocks) && !responseText) {
-    const parts: string[] = [];
+  if (Array.isArray(contentBlocks)) {
+    if (!responseText) {
+      const parts: string[] = [];
+      for (const block of contentBlocks) {
+        if (typeof block === "object" && block?.type === "text") {
+          parts.push(block.text || "");
+        } else if (typeof block === "string") {
+          parts.push(block);
+        }
+      }
+      if (parts.length) responseText = parts.join("\n");
+    }
+    // Extract Anthropic tool_use blocks
     for (const block of contentBlocks) {
-      if (typeof block === "object" && block?.type === "text") {
-        parts.push(block.text || "");
-      } else if (typeof block === "string") {
-        parts.push(block);
+      if (typeof block === "object" && block?.type === "tool_use" && block?.name) {
+        toolsUsed.push(block.name);
       }
     }
-    if (parts.length) responseText = parts.join("\n");
   }
 
   return {
@@ -351,7 +374,7 @@ function extractEventFromResponse(
     status: "success",
     error_message: null,
     task_context: taskContext || _globalTaskContext,
-    tools_used: [],
+    tools_used: toolsUsed,
     prompt_messages: [],
     response_text: responseText,
     user_id: _globalUserId,
@@ -468,6 +491,198 @@ export function instrument(client: any): void {
   console.warn("AgentPulse: Unknown client type. Pass an OpenAI or Anthropic client instance.");
 }
 
+// ── Streaming wrappers ──
+
+function wrapOpenAIStream(stream: any, args: any[], provider: string, startTime: number): any {
+  const contentParts: string[] = [];
+  const toolNames: string[] = [];
+  let model = args[0]?.model || "unknown";
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  function processChunk(chunk: any): void {
+    try {
+      if (chunk?.model) model = chunk.model;
+      if (chunk?.choices?.[0]?.delta) {
+        const delta = chunk.choices[0].delta;
+        if (delta.content) contentParts.push(delta.content);
+        if (Array.isArray(delta.tool_calls)) {
+          for (const tc of delta.tool_calls) {
+            if (tc?.function?.name && !toolNames.includes(tc.function.name)) {
+              toolNames.push(tc.function.name);
+            }
+          }
+        }
+      }
+      if (chunk?.usage) {
+        inputTokens = chunk.usage.prompt_tokens || chunk.usage.input_tokens || 0;
+        outputTokens = chunk.usage.completion_tokens || chunk.usage.output_tokens || 0;
+      }
+    } catch {}
+  }
+
+  function emitEvent(): void {
+    try {
+      const latency = Date.now() - startTime;
+      const responseText = contentParts.length > 0 ? contentParts.join("") : null;
+
+      // Estimate tokens if usage not available
+      if (!inputTokens && !outputTokens) {
+        const msgs = args[0]?.messages;
+        if (Array.isArray(msgs)) {
+          const promptText = msgs.map((m: any) => typeof m.content === "string" ? m.content : "").join(" ");
+          inputTokens = Math.max(1, Math.round(promptText.length / 4));
+        }
+        if (responseText) outputTokens = Math.max(1, Math.round(responseText.length / 4));
+      }
+
+      const cost = estimateCost(model, inputTokens, outputTokens);
+
+      addEvent({
+        timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
+        provider,
+        model,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: Math.round(cost * 1e6) / 1e6,
+        latency_ms: latency,
+        status: "success",
+        error_message: null,
+        task_context: _globalTaskContext,
+        tools_used: toolNames,
+        prompt_messages: extractPromptMessages(args),
+        response_text: responseText,
+        user_id: _globalUserId,
+      });
+    } catch {}
+  }
+
+  // Create an async iterable wrapper
+  const wrapper = {
+    [Symbol.asyncIterator]() {
+      const origIterator = stream[Symbol.asyncIterator]();
+      let done = false;
+      return {
+        async next() {
+          const result = await origIterator.next();
+          if (result.done) {
+            if (!done) { done = true; emitEvent(); }
+            return result;
+          }
+          processChunk(result.value);
+          return result;
+        },
+        async return(value?: any) {
+          if (!done) { done = true; emitEvent(); }
+          return origIterator.return ? origIterator.return(value) : { done: true, value };
+        },
+      };
+    },
+  };
+
+  // Proxy all other properties/methods to the original stream
+  return new Proxy(wrapper, {
+    get(target: any, prop: string | symbol) {
+      if (prop === Symbol.asyncIterator) return target[Symbol.asyncIterator].bind(target);
+      if (prop in target) return target[prop];
+      const val = stream[prop];
+      return typeof val === "function" ? val.bind(stream) : val;
+    },
+  });
+}
+
+function wrapAnthropicStream(stream: any, args: any[], startTime: number): any {
+  const contentParts: string[] = [];
+  const toolNames: string[] = [];
+  let model = args[0]?.model || "unknown";
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  function processChunk(event: any): void {
+    try {
+      const eventType = event?.type;
+      if (eventType === "message_start" && event?.message) {
+        if (event.message.model) model = event.message.model;
+        if (event.message.usage) inputTokens = event.message.usage.input_tokens || 0;
+      } else if (eventType === "content_block_delta" && event?.delta?.text) {
+        contentParts.push(event.delta.text);
+      } else if (eventType === "content_block_start" && event?.content_block?.type === "tool_use") {
+        if (event.content_block.name && !toolNames.includes(event.content_block.name)) {
+          toolNames.push(event.content_block.name);
+        }
+      } else if (eventType === "message_delta" && event?.usage) {
+        outputTokens = event.usage.output_tokens || 0;
+      }
+    } catch {}
+  }
+
+  function emitEvent(): void {
+    try {
+      const latency = Date.now() - startTime;
+      const responseText = contentParts.length > 0 ? contentParts.join("") : null;
+
+      if (!inputTokens && !outputTokens) {
+        const msgs = args[0]?.messages;
+        if (Array.isArray(msgs)) {
+          const promptText = msgs.map((m: any) => typeof m.content === "string" ? m.content : "").join(" ");
+          inputTokens = Math.max(1, Math.round(promptText.length / 4));
+        }
+        if (responseText) outputTokens = Math.max(1, Math.round(responseText.length / 4));
+      }
+
+      const cost = estimateCost(model, inputTokens, outputTokens);
+
+      addEvent({
+        timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
+        provider: "anthropic",
+        model,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: Math.round(cost * 1e6) / 1e6,
+        latency_ms: latency,
+        status: "success",
+        error_message: null,
+        task_context: _globalTaskContext,
+        tools_used: toolNames,
+        prompt_messages: extractAnthropicMessages(args),
+        response_text: responseText,
+        user_id: _globalUserId,
+      });
+    } catch {}
+  }
+
+  const wrapper = {
+    [Symbol.asyncIterator]() {
+      const origIterator = stream[Symbol.asyncIterator]();
+      let done = false;
+      return {
+        async next() {
+          const result = await origIterator.next();
+          if (result.done) {
+            if (!done) { done = true; emitEvent(); }
+            return result;
+          }
+          processChunk(result.value);
+          return result;
+        },
+        async return(value?: any) {
+          if (!done) { done = true; emitEvent(); }
+          return origIterator.return ? origIterator.return(value) : { done: true, value };
+        },
+      };
+    },
+  };
+
+  return new Proxy(wrapper, {
+    get(target: any, prop: string | symbol) {
+      if (prop === Symbol.asyncIterator) return target[Symbol.asyncIterator].bind(target);
+      if (prop in target) return target[prop];
+      const val = stream[prop];
+      return typeof val === "function" ? val.bind(stream) : val;
+    },
+  });
+}
+
 // ── SDK-level patches (OpenAI + Anthropic) ──
 
 function patchOpenAIInstance(client: any): void {
@@ -484,12 +699,12 @@ function patchOpenAIInstance(client: any): void {
 
       try {
         const response = await origCreate(...args);
-
-        if (opts.stream) return response;
-
-        const latency = Date.now() - start;
         const baseUrl = client?.baseURL || client?._options?.baseURL || "";
         const provider = detectProviderFromBaseUrl(String(baseUrl)) || detectProviderFromModel(opts.model || "");
+
+        if (opts.stream) return wrapOpenAIStream(response, args, provider, start);
+
+        const latency = Date.now() - start;
 
         const event = extractEventFromResponse(response, provider, latency);
         if (event) {
@@ -588,7 +803,7 @@ function patchAnthropicInstance(client: any): void {
       try {
         const response = await origCreate(...args);
 
-        if (opts.stream) return response;
+        if (opts.stream) return wrapAnthropicStream(response, args, start);
 
         const latency = Date.now() - start;
         const event = extractEventFromResponse(response, "anthropic", latency);
@@ -772,11 +987,115 @@ function makePatchedRequest(origRequest: typeof http.request): (...args: any[]) 
 
     // Capture response
     req.on("response", (res: http.IncomingMessage) => {
-      // Skip non-OK or streaming responses
       const contentType = res.headers["content-type"] || "";
-      if (contentType.includes("text/event-stream") || contentType.includes("text/plain")) {
-        return; // Streaming SSE — skip
+      const isSSE = contentType.includes("text/event-stream");
+
+      if (isSSE) {
+        // Handle SSE streaming — accumulate chunks and parse events
+        const sseContentParts: string[] = [];
+        const sseToolNames: string[] = [];
+        let sseModel = "unknown";
+        let sseInputTokens = 0;
+        let sseOutputTokens = 0;
+        let sseBuffer = "";
+
+        res.on("data", (chunk: Buffer) => {
+          try {
+            sseBuffer += Buffer.isBuffer(chunk) ? chunk.toString("utf-8") : String(chunk);
+            const lines = sseBuffer.split("\n");
+            sseBuffer = lines.pop() || ""; // keep incomplete line
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+              try {
+                const json = JSON.parse(line.slice(6));
+                if (json.model) sseModel = json.model;
+                // OpenAI format
+                if (json.choices?.[0]?.delta) {
+                  const delta = json.choices[0].delta;
+                  if (delta.content) sseContentParts.push(delta.content);
+                  if (Array.isArray(delta.tool_calls)) {
+                    for (const tc of delta.tool_calls) {
+                      if (tc?.function?.name && !sseToolNames.includes(tc.function.name)) sseToolNames.push(tc.function.name);
+                    }
+                  }
+                }
+                if (json.usage) {
+                  sseInputTokens = json.usage.prompt_tokens || json.usage.input_tokens || sseInputTokens;
+                  sseOutputTokens = json.usage.completion_tokens || json.usage.output_tokens || sseOutputTokens;
+                }
+                // Anthropic format
+                if (json.type === "message_start" && json.message) {
+                  if (json.message.model) sseModel = json.message.model;
+                  if (json.message.usage) sseInputTokens = json.message.usage.input_tokens || 0;
+                }
+                if (json.type === "content_block_delta" && json.delta?.text) sseContentParts.push(json.delta.text);
+                if (json.type === "content_block_start" && json.content_block?.type === "tool_use" && json.content_block.name) {
+                  if (!sseToolNames.includes(json.content_block.name)) sseToolNames.push(json.content_block.name);
+                }
+                if (json.type === "message_delta" && json.usage) sseOutputTokens = json.usage.output_tokens || 0;
+              } catch {}
+            }
+          } catch {}
+        });
+
+        res.on("end", () => {
+          try {
+            const latency = Date.now() - startTime;
+            const responseText = sseContentParts.length > 0 ? sseContentParts.join("") : null;
+
+            // Estimate tokens if not available
+            if (!sseInputTokens && !sseOutputTokens) {
+              try {
+                const requestBody = Buffer.concat(requestChunks).toString("utf-8");
+                if (requestBody && requestBody[0] === "{") {
+                  const reqJson = JSON.parse(requestBody);
+                  const msgs = reqJson.messages;
+                  if (Array.isArray(msgs)) {
+                    const promptText = msgs.map((m: any) => typeof m.content === "string" ? m.content : "").join(" ");
+                    sseInputTokens = Math.max(1, Math.round(promptText.length / 4));
+                  }
+                }
+              } catch {}
+              if (responseText) sseOutputTokens = Math.max(1, Math.round(responseText.length / 4));
+            }
+
+            const cost = estimateCost(sseModel, sseInputTokens, sseOutputTokens);
+            const event: LLMEvent = {
+              timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, ".000Z"),
+              provider: provider!,
+              model: sseModel,
+              input_tokens: sseInputTokens,
+              output_tokens: sseOutputTokens,
+              cost_usd: Math.round(cost * 1e6) / 1e6,
+              latency_ms: latency,
+              status: "success",
+              error_message: null,
+              task_context: _globalTaskContext,
+              tools_used: sseToolNames,
+              prompt_messages: [],
+              response_text: responseText,
+              user_id: _globalUserId,
+            };
+
+            // Extract prompt messages from request body
+            try {
+              const requestBody = Buffer.concat(requestChunks).toString("utf-8");
+              if (requestBody && requestBody[0] === "{") {
+                const reqJson = JSON.parse(requestBody);
+                event.prompt_messages = provider === "anthropic"
+                  ? extractAnthropicMessages([reqJson])
+                  : extractPromptMessages([reqJson]);
+              }
+            } catch {}
+
+            addEvent(event);
+          } catch {}
+        });
+        return;
       }
+
+      if (contentType.includes("text/plain")) return; // Skip non-LLM text responses
 
       const responseChunks: Buffer[] = [];
       res.on("data", (chunk: Buffer) => {
