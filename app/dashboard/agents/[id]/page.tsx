@@ -30,7 +30,7 @@ export default function AgentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [eventsPage, setEventsPage] = useState(0);
-  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("30d"));
+  const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
   const supabase = createBrowserSupabaseClient();
 
   const PAGE_SIZE = 100;
