@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     // Comprehensive model pricing per million tokens (server-side fallback)
     const MODEL_PRICING: Record<string, { input: number; output: number }> = {
       // MiniMax
-      'MiniMax-M2.5': { input: 15, output: 120 },
+      'MiniMax-M2.5': { input: 0.30, output: 1.20 },
       'minimax-m1': { input: 5, output: 40 },
       'MiniMax-Text-02': { input: 1, output: 5 },
       'abab6.5s-chat': { input: 1, output: 5 },

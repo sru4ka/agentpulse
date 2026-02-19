@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatCost, formatNumber, formatLatency, timeAgo } from "@/lib/utils";
+import { recalculateEventCost } from "@/lib/pricing";
 import EventDetail from "./event-detail";
 
 interface PromptMessage {
@@ -141,7 +142,7 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
                     {formatNumber(event.input_tokens)} / {formatNumber(event.output_tokens)}
                   </td>
                   <td className="py-3 px-3 text-[#FAFAFA] text-right whitespace-nowrap">
-                    {formatCost(event.cost_usd)}
+                    {formatCost(recalculateEventCost(event))}
                   </td>
                   <td className="py-3 px-3 text-[#A1A1AA] text-right whitespace-nowrap">
                     {formatLatency(event.latency_ms)}
@@ -180,7 +181,7 @@ export default function EventLog({ events, title = "Recent Events", showFilters 
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div>
                   <span className="text-[#A1A1AA]">Cost</span>
-                  <p className="text-[#FAFAFA] font-medium">{formatCost(event.cost_usd)}</p>
+                  <p className="text-[#FAFAFA] font-medium">{formatCost(recalculateEventCost(event))}</p>
                 </div>
                 <div>
                   <span className="text-[#A1A1AA]">Tokens</span>

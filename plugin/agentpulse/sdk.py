@@ -192,7 +192,7 @@ def shutdown():
     _flush()
 
 
-def track(response, provider: str = None, latency_ms: int = None, task_context: str = None):
+def track(response, provider: str = None, latency_ms: int = None, task_context: str = None, messages: list = None):
     """Manually track an LLM API response.
 
     Works with:
@@ -200,9 +200,14 @@ def track(response, provider: str = None, latency_ms: int = None, task_context: 
     - Anthropic SDK responses (Message objects)
     - Raw dicts with a 'usage' field
 
+    Args:
+        messages: Optional list of prompt messages (each a dict with 'role' and 'content').
+            Pass the same messages you sent to the LLM to capture them in the dashboard.
+
     Example:
-        response = client.chat.completions.create(...)
-        agentpulse.track(response)
+        msgs = [{"role": "user", "content": "Hello"}]
+        response = client.chat.completions.create(model="gpt-4o", messages=msgs)
+        agentpulse.track(response, messages=msgs)
     """
     if not _initialized:
         logger.warning("AgentPulse: call agentpulse.init() before tracking")
@@ -210,6 +215,11 @@ def track(response, provider: str = None, latency_ms: int = None, task_context: 
 
     event = _extract_event_from_response(response, provider, latency_ms, task_context)
     if event:
+        if messages:
+            event["prompt_messages"] = [
+                {"role": m.get("role", "user"), "content": m.get("content", "")}
+                for m in messages if isinstance(m, dict)
+            ]
         _add_event(event)
 
 
@@ -282,6 +292,7 @@ def _extract_event_from_response(response, provider=None, latency_ms=None, task_
     # Extract prompt messages if available
     prompt_messages = []
     response_text = None
+    tools_used = []
 
     # OpenAI format
     choices = data.get("choices", [])
@@ -291,18 +302,31 @@ def _extract_event_from_response(response, provider=None, latency_ms=None, task_
             msg = first.get("message", {})
             if isinstance(msg, dict):
                 response_text = msg.get("content")
+                # Extract tool calls
+                tool_calls = msg.get("tool_calls", [])
+                if tool_calls and isinstance(tool_calls, list):
+                    for tc in tool_calls:
+                        if isinstance(tc, dict):
+                            func = tc.get("function", {})
+                            if isinstance(func, dict) and func.get("name"):
+                                tools_used.append(func["name"])
 
     # Anthropic format
     content_blocks = data.get("content", [])
-    if content_blocks and isinstance(content_blocks, list) and not response_text:
-        parts = []
+    if content_blocks and isinstance(content_blocks, list):
+        if not response_text:
+            parts = []
+            for block in content_blocks:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    parts.append(block.get("text", ""))
+                elif isinstance(block, str):
+                    parts.append(block)
+            if parts:
+                response_text = "\n".join(parts)
+        # Extract Anthropic tool_use blocks
         for block in content_blocks:
-            if isinstance(block, dict) and block.get("type") == "text":
-                parts.append(block.get("text", ""))
-            elif isinstance(block, str):
-                parts.append(block)
-        if parts:
-            response_text = "\n".join(parts)
+            if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name"):
+                tools_used.append(block["name"])
 
     return {
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
@@ -315,11 +339,281 @@ def _extract_event_from_response(response, provider=None, latency_ms=None, task_
         "status": "success",
         "error_message": None,
         "task_context": task_context or _global_task_context,
-        "tools_used": [],
+        "tools_used": tools_used,
         "prompt_messages": prompt_messages,
         "response_text": response_text,
         "user_id": _global_user_id,
     }
+
+
+# ── Streaming wrappers ──
+
+class _OpenAIStreamWrapper:
+    """Wraps an OpenAI streaming response to capture metrics when stream completes."""
+
+    def __init__(self, stream, kwargs, provider, start_time):
+        self._stream = stream
+        self._kwargs = kwargs
+        self._provider = provider
+        self._start_time = start_time
+        self._content_parts = []
+        self._tool_names = []
+        self._model = kwargs.get("model", "unknown")
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    def __iter__(self):
+        try:
+            for chunk in self._stream:
+                self._process_chunk(chunk)
+                yield chunk
+        finally:
+            self._emit_event()
+
+    def __enter__(self):
+        if hasattr(self._stream, "__enter__"):
+            self._stream.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        if hasattr(self._stream, "__exit__"):
+            return self._stream.__exit__(*args)
+
+    def _process_chunk(self, chunk):
+        try:
+            if hasattr(chunk, "model") and chunk.model:
+                self._model = chunk.model
+            if hasattr(chunk, "choices") and chunk.choices:
+                delta = getattr(chunk.choices[0], "delta", None)
+                if delta:
+                    content = getattr(delta, "content", None)
+                    if content:
+                        self._content_parts.append(content)
+                    tool_calls = getattr(delta, "tool_calls", None)
+                    if tool_calls:
+                        for tc in tool_calls:
+                            func = getattr(tc, "function", None)
+                            if func:
+                                name = getattr(func, "name", None)
+                                if name and name not in self._tool_names:
+                                    self._tool_names.append(name)
+            if hasattr(chunk, "usage") and chunk.usage:
+                usage = chunk.usage
+                self._input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                self._output_tokens = getattr(usage, "completion_tokens", 0) or 0
+        except Exception:
+            pass
+
+    def _emit_event(self):
+        try:
+            latency = int((time.time() - self._start_time) * 1000)
+            response_text = "".join(self._content_parts) if self._content_parts else None
+
+            # Estimate tokens from text if usage not available (stream without include_usage)
+            if not self._input_tokens and not self._output_tokens:
+                prompt_text = " ".join(
+                    m.get("content", "") for m in self._kwargs.get("messages", [])
+                    if isinstance(m, dict) and m.get("content")
+                )
+                self._input_tokens = max(1, len(prompt_text) // 4) if prompt_text else 0
+                self._output_tokens = max(1, len(response_text) // 4) if response_text else 0
+
+            cost = estimate_cost(self._model, self._input_tokens, self._output_tokens)
+
+            _add_event({
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "provider": self._provider,
+                "model": self._model,
+                "input_tokens": self._input_tokens,
+                "output_tokens": self._output_tokens,
+                "cost_usd": round(cost, 6),
+                "latency_ms": latency,
+                "status": "success",
+                "error_message": None,
+                "task_context": _global_task_context,
+                "tools_used": self._tool_names,
+                "prompt_messages": _extract_prompt_messages(self._kwargs),
+                "response_text": response_text,
+                "user_id": _global_user_id,
+            })
+        except Exception as e:
+            logger.debug(f"AgentPulse: error finalizing stream event: {e}")
+
+
+class _OpenAIAsyncStreamWrapper:
+    """Wraps an OpenAI async streaming response to capture metrics."""
+
+    def __init__(self, stream, kwargs, provider, start_time):
+        self._stream = stream
+        self._kwargs = kwargs
+        self._provider = provider
+        self._start_time = start_time
+        self._content_parts = []
+        self._tool_names = []
+        self._model = kwargs.get("model", "unknown")
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    async def __aiter__(self):
+        try:
+            async for chunk in self._stream:
+                self._process_chunk(chunk)
+                yield chunk
+        finally:
+            self._emit_event()
+
+    async def __aenter__(self):
+        if hasattr(self._stream, "__aenter__"):
+            await self._stream.__aenter__()
+        return self
+
+    async def __aexit__(self, *args):
+        if hasattr(self._stream, "__aexit__"):
+            return await self._stream.__aexit__(*args)
+
+    # Reuse same chunk processing and event emission
+    _process_chunk = _OpenAIStreamWrapper._process_chunk
+    _emit_event = _OpenAIStreamWrapper._emit_event
+
+
+class _AnthropicStreamWrapper:
+    """Wraps an Anthropic streaming response to capture metrics."""
+
+    def __init__(self, stream, kwargs, start_time):
+        self._stream = stream
+        self._kwargs = kwargs
+        self._start_time = start_time
+        self._content_parts = []
+        self._tool_names = []
+        self._model = kwargs.get("model", "unknown")
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    def __iter__(self):
+        try:
+            for event in self._stream:
+                self._process_chunk(event)
+                yield event
+        finally:
+            self._emit_event()
+
+    def __enter__(self):
+        if hasattr(self._stream, "__enter__"):
+            self._stream.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        if hasattr(self._stream, "__exit__"):
+            return self._stream.__exit__(*args)
+
+    def _process_chunk(self, event):
+        try:
+            event_type = getattr(event, "type", "")
+            if event_type == "message_start":
+                msg = getattr(event, "message", None)
+                if msg:
+                    self._model = getattr(msg, "model", self._model)
+                    usage = getattr(msg, "usage", None)
+                    if usage:
+                        self._input_tokens = getattr(usage, "input_tokens", 0) or 0
+            elif event_type == "content_block_delta":
+                delta = getattr(event, "delta", None)
+                if delta:
+                    text = getattr(delta, "text", None)
+                    if text:
+                        self._content_parts.append(text)
+            elif event_type == "content_block_start":
+                block = getattr(event, "content_block", None)
+                if block and getattr(block, "type", "") == "tool_use":
+                    name = getattr(block, "name", None)
+                    if name and name not in self._tool_names:
+                        self._tool_names.append(name)
+            elif event_type == "message_delta":
+                usage = getattr(event, "usage", None)
+                if usage:
+                    self._output_tokens = getattr(usage, "output_tokens", 0) or 0
+        except Exception:
+            pass
+
+    def _emit_event(self):
+        try:
+            latency = int((time.time() - self._start_time) * 1000)
+            response_text = "".join(self._content_parts) if self._content_parts else None
+
+            if not self._input_tokens and not self._output_tokens:
+                prompt_text = " ".join(
+                    m.get("content", "") for m in self._kwargs.get("messages", [])
+                    if isinstance(m, dict) and m.get("content")
+                )
+                self._input_tokens = max(1, len(prompt_text) // 4) if prompt_text else 0
+                self._output_tokens = max(1, len(response_text) // 4) if response_text else 0
+
+            cost = estimate_cost(self._model, self._input_tokens, self._output_tokens)
+
+            _add_event({
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "provider": "anthropic",
+                "model": self._model,
+                "input_tokens": self._input_tokens,
+                "output_tokens": self._output_tokens,
+                "cost_usd": round(cost, 6),
+                "latency_ms": latency,
+                "status": "success",
+                "error_message": None,
+                "task_context": _global_task_context,
+                "tools_used": self._tool_names,
+                "prompt_messages": _extract_anthropic_messages(self._kwargs),
+                "response_text": response_text,
+                "user_id": _global_user_id,
+            })
+        except Exception as e:
+            logger.debug(f"AgentPulse: error finalizing stream event: {e}")
+
+
+class _AnthropicAsyncStreamWrapper:
+    """Wraps an Anthropic async streaming response to capture metrics."""
+
+    def __init__(self, stream, kwargs, start_time):
+        self._stream = stream
+        self._kwargs = kwargs
+        self._start_time = start_time
+        self._content_parts = []
+        self._tool_names = []
+        self._model = kwargs.get("model", "unknown")
+        self._input_tokens = 0
+        self._output_tokens = 0
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    async def __aiter__(self):
+        try:
+            async for event in self._stream:
+                self._process_chunk(event)
+                yield event
+        finally:
+            self._emit_event()
+
+    async def __aenter__(self):
+        if hasattr(self._stream, "__aenter__"):
+            await self._stream.__aenter__()
+        return self
+
+    async def __aexit__(self, *args):
+        if hasattr(self._stream, "__aexit__"):
+            return await self._stream.__aexit__(*args)
+
+    _process_chunk = _AnthropicStreamWrapper._process_chunk
+    _emit_event = _AnthropicStreamWrapper._emit_event
 
 
 # ── Auto-instrumentation ──
@@ -384,14 +678,15 @@ def _patch_openai():
             raise
 
         latency = int((time.time() - start) * 1000)
+        provider = _detect_provider_from_client(self, kwargs)
 
-        # Don't track streaming responses here (they don't have usage yet)
+        # Wrap streaming responses to capture metrics when stream completes
         if kwargs.get("stream"):
-            return response
+            return _OpenAIStreamWrapper(response, kwargs, provider, start)
 
         event = _extract_event_from_response(
             response,
-            provider=_detect_provider_from_client(self, kwargs),
+            provider=provider,
             latency_ms=latency,
         )
         if event:
@@ -433,13 +728,14 @@ def _patch_openai():
                 raise
 
             latency = int((time.time() - start) * 1000)
+            provider = _detect_provider_from_client(self, kwargs)
 
             if kwargs.get("stream"):
-                return response
+                return _OpenAIAsyncStreamWrapper(response, kwargs, provider, start)
 
             event = _extract_event_from_response(
                 response,
-                provider=_detect_provider_from_client(self, kwargs),
+                provider=provider,
                 latency_ms=latency,
             )
             if event:
@@ -495,7 +791,7 @@ def _patch_anthropic():
         latency = int((time.time() - start) * 1000)
 
         if kwargs.get("stream"):
-            return response
+            return _AnthropicStreamWrapper(response, kwargs, start)
 
         event = _extract_event_from_response(response, provider="anthropic", latency_ms=latency)
         if event:
@@ -539,7 +835,7 @@ def _patch_anthropic():
             latency = int((time.time() - start) * 1000)
 
             if kwargs.get("stream"):
-                return response
+                return _AnthropicAsyncStreamWrapper(response, kwargs, start)
 
             event = _extract_event_from_response(response, provider="anthropic", latency_ms=latency)
             if event:
