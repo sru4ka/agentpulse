@@ -11,9 +11,16 @@ export interface DateRangeResult {
   label: string;
 }
 
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function getDateRange(range: DateRange, customFrom?: string, customTo?: string): DateRangeResult {
   const now = new Date();
-  const to = now.toISOString().split("T")[0];
+  const to = toLocalDateString(now);
 
   switch (range) {
     case "today":
@@ -21,17 +28,17 @@ export function getDateRange(range: DateRange, customFrom?: string, customTo?: s
     case "7d": {
       const d = new Date();
       d.setDate(d.getDate() - 7);
-      return { range, from: d.toISOString().split("T")[0], to, label: "Last 7 days" };
+      return { range, from: toLocalDateString(d), to, label: "Last 7 days" };
     }
     case "30d": {
       const d = new Date();
       d.setDate(d.getDate() - 30);
-      return { range, from: d.toISOString().split("T")[0], to, label: "Last 30 days" };
+      return { range, from: toLocalDateString(d), to, label: "Last 30 days" };
     }
     case "90d": {
       const d = new Date();
       d.setDate(d.getDate() - 90);
-      return { range, from: d.toISOString().split("T")[0], to, label: "Last 90 days" };
+      return { range, from: toLocalDateString(d), to, label: "Last 90 days" };
     }
     case "custom":
       return { range, from: customFrom || to, to: customTo || to, label: "Custom" };
@@ -63,7 +70,7 @@ export default function DateRangeSelector({ value, onChange }: DateRangeSelector
             key={opt.value}
             onClick={() => {
               if (opt.value === "custom") {
-                const today = new Date().toISOString().split("T")[0];
+                const today = toLocalDateString(new Date());
                 const from = customFrom || today;
                 const to = customTo || today;
                 setCustomFrom(from);
