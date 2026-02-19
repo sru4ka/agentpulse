@@ -475,14 +475,20 @@ function patchOpenAI(): void {
 
   try {
     const proxied = new Proxy(origConstructor, handler);
-    if (openai.default) {
-      openai.default = proxied;
-    } else if (openai.OpenAI) {
-      openai.OpenAI = proxied;
-    }
-    // Also patch Module.exports if it's the constructor directly
+
+    // Replace in module cache so future require("openai") returns the proxied constructor
     const mod = require.cache[require.resolve("openai")];
     if (mod) {
+      // If module.exports IS the constructor (common pattern), replace it entirely
+      if (typeof mod.exports === "function") {
+        // Copy all named exports from the original to the proxied constructor
+        for (const key of Object.keys(mod.exports)) {
+          if (key !== "default" && key !== "OpenAI") {
+            (proxied as any)[key] = mod.exports[key];
+          }
+        }
+        mod.exports = proxied;
+      }
       if (mod.exports.default) mod.exports.default = proxied;
       if (mod.exports.OpenAI) mod.exports.OpenAI = proxied;
     }
@@ -567,13 +573,19 @@ function patchAnthropic(): void {
 
   try {
     const proxied = new Proxy(Anthropic, handler);
-    if (anthropic.default) {
-      anthropic.default = proxied;
-    } else if (anthropic.Anthropic) {
-      anthropic.Anthropic = proxied;
-    }
+
+    // Replace in module cache so future require("@anthropic-ai/sdk") returns the proxied constructor
     const mod = require.cache[require.resolve("@anthropic-ai/sdk")];
     if (mod) {
+      // If module.exports IS the constructor (common pattern), replace it entirely
+      if (typeof mod.exports === "function") {
+        for (const key of Object.keys(mod.exports)) {
+          if (key !== "default" && key !== "Anthropic") {
+            (proxied as any)[key] = mod.exports[key];
+          }
+        }
+        mod.exports = proxied;
+      }
       if (mod.exports.default) mod.exports.default = proxied;
       if (mod.exports.Anthropic) mod.exports.Anthropic = proxied;
     }
