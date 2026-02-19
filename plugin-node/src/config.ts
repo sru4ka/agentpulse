@@ -20,35 +20,42 @@ const DEFAULT_CONFIG: AgentPulseConfig = {
 };
 
 /**
- * Load config from ~/.openclaw/agentpulse.yaml.
- * Uses a simple key:value parser to avoid requiring a yaml dependency.
+ * Load config from environment variables first, then ~/.openclaw/agentpulse.yaml.
+ * Environment variables take precedence:
+ *   AGENTPULSE_API_KEY, AGENTPULSE_AGENT_NAME, AGENTPULSE_ENDPOINT
  */
 export function loadConfig(): AgentPulseConfig {
   const config = { ...DEFAULT_CONFIG };
 
-  if (!fs.existsSync(CONFIG_PATH)) return config;
-
-  try {
-    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-    for (const line of raw.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const colonIdx = trimmed.indexOf(":");
-      if (colonIdx === -1) continue;
-      const key = trimmed.slice(0, colonIdx).trim();
-      let value = trimmed.slice(colonIdx + 1).trim();
-      // Strip surrounding quotes
-      if ((value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
+  // Load from file first
+  if (fs.existsSync(CONFIG_PATH)) {
+    try {
+      const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+      for (const line of raw.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const colonIdx = trimmed.indexOf(":");
+        if (colonIdx === -1) continue;
+        const key = trimmed.slice(0, colonIdx).trim();
+        let value = trimmed.slice(colonIdx + 1).trim();
+        // Strip surrounding quotes
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (key in config) {
+          (config as any)[key] = value;
+        }
       }
-      if (key in config) {
-        (config as any)[key] = value;
-      }
+    } catch {
+      // Ignore parse errors, continue with defaults
     }
-  } catch {
-    // Ignore parse errors, return defaults
   }
+
+  // Environment variables override file config
+  if (process.env.AGENTPULSE_API_KEY) config.api_key = process.env.AGENTPULSE_API_KEY;
+  if (process.env.AGENTPULSE_AGENT_NAME) config.agent_name = process.env.AGENTPULSE_AGENT_NAME;
+  if (process.env.AGENTPULSE_ENDPOINT) config.endpoint = process.env.AGENTPULSE_ENDPOINT;
 
   return config;
 }

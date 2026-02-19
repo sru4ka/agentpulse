@@ -11,5 +11,5 @@
  *   // Or use agentpulse.track(response) for manual tracking.
  */
 
-export { init, autoInstrument, track, flush, shutdown, setUser, setContext } from "./sdk";
+export { init, autoInstrument, instrument, track, flush, shutdown, setUser, setContext } from "./sdk";
 export { estimateCost, lookupPricing, MODEL_PRICING } from "./pricing";
