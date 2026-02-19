@@ -118,7 +118,7 @@ export default function SettingsPage() {
         <p className="text-sm text-[#A1A1AA] mb-4">Use this key in your AgentPulse plugin configuration.</p>
         <div className="flex items-center gap-3">
           <code className="flex-1 bg-[#0A0A0B] border border-[#2A2A2D] rounded-lg px-4 py-2.5 text-sm text-[#FAFAFA] font-mono truncate">
-            {showKey ? profile?.api_key : profile?.api_key?.replace(/./g, "\u2022").slice(0, 20) + "..."}
+            {!profile?.api_key ? "No API key generated" : showKey ? profile.api_key : profile.api_key.replace(/./g, "\u2022").slice(0, 20) + "..."}
           </code>
           <button
             onClick={() => setShowKey(!showKey)}
