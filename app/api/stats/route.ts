@@ -39,7 +39,8 @@ export async function GET(request: Request) {
     const agentIds = (agents || []).map((a: any) => a.id)
 
     // Get today's stats (filtered to user's agents)
-    const today = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     let todayStats: any[] = []
     if (agentIds.length > 0) {
       const { data } = await supabase
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
     // Get last 30 days stats for charts (subset of allStats)
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+    const thirtyDaysAgoStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`
     const recentStats = allStats.filter((s: any) => s.date >= thirtyDaysAgoStr)
 
     // Get recent events (last 20, filtered to user's agents)

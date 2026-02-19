@@ -10,6 +10,15 @@ import Recommendations from "@/components/dashboard/recommendations";
 import DateRangeSelector, { DateRangeResult, getDateRange } from "@/components/dashboard/date-range-selector";
 import { formatCost, formatNumber } from "@/lib/utils";
 
+function toLocalISORange(dateStr: string, end: boolean): string {
+  const offset = -new Date().getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const h = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
+  const m = String(Math.abs(offset) % 60).padStart(2, "0");
+  const tz = `${sign}${h}:${m}`;
+  return end ? `${dateStr}T23:59:59${tz}` : `${dateStr}T00:00:00${tz}`;
+}
+
 export default function CostsPage() {
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
@@ -55,8 +64,8 @@ export default function CostsPage() {
         ? agents.map((a) => a.id)
         : [selectedAgent];
 
-      const fromTs = dateRange.from + "T00:00:00";
-      const toTs = dateRange.to + "T23:59:59";
+      const fromTs = toLocalISORange(dateRange.from, false);
+      const toTs = toLocalISORange(dateRange.to, true);
 
       const [eventsRes, statsRes] = await Promise.all([
         supabase
