@@ -12,6 +12,8 @@ interface DashboardCacheCtx {
   agents: any[] | null;
   /** True once agents have been fetched (even if the list is empty). */
   agentsLoaded: boolean;
+  /** User plan (free/pro/team/enterprise). null until fetched. */
+  plan: string | null;
   /** Supabase access token (JWT). null until session checked. */
   accessToken: string | null;
   /** Shared Supabase browser client. */
@@ -34,23 +36,31 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
   const cache = useRef<Map<string, CacheEntry>>(new Map());
   const [agents, setAgents] = useState<any[] | null>(null);
   const [agentsLoaded, setAgentsLoaded] = useState(false);
+  const [plan, setPlan] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const supabaseRef = useRef(createBrowserSupabaseClient());
   const supabase = supabaseRef.current;
 
-  // Fetch agents + session once for the entire dashboard lifetime
+  // Fetch agents + plan + session once for the entire dashboard lifetime
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
       setAccessToken(session.access_token);
 
-      const { data: agentsData } = await supabase
-        .from("agents")
-        .select("*")
-        .order("last_seen", { ascending: false });
+      // Fetch agents and plan in parallel
+      const [agentsRes, statsRes] = await Promise.all([
+        supabase
+          .from("agents")
+          .select("*")
+          .order("last_seen", { ascending: false }),
+        fetch("/api/stats", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).then((r) => r.ok ? r.json() : null).catch(() => null),
+      ]);
 
-      setAgents(agentsData || []);
+      setAgents(agentsRes.data || []);
+      setPlan(statsRes?.profile?.plan || "free");
       setAgentsLoaded(true);
     };
     init();
@@ -71,7 +81,7 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
   }, []);
 
   return (
-    <Ctx.Provider value={{ agents, agentsLoaded, accessToken, supabase, get, set }}>
+    <Ctx.Provider value={{ agents, agentsLoaded, plan, accessToken, supabase, get, set }}>
       {children}
     </Ctx.Provider>
   );
