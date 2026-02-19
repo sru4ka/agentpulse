@@ -65,8 +65,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${redirectBase}/login?error=exchange_failed`)
   }
 
+  // Build the redirect URL. Append verified=true so the dashboard can show a
+  // success toast (only when the user didn't supply a custom ?next param, which
+  // signals OAuth rather than email-verification).
+  const separator = next.includes('?') ? '&' : '?'
+  const redirectUrl = next === '/dashboard'
+    ? `${redirectBase}${next}${separator}verified=true`
+    : `${redirectBase}${next}`
+
   // Set session cookies on the redirect response so the browser receives them.
-  const response = NextResponse.redirect(`${redirectBase}${next}`)
+  const response = NextResponse.redirect(redirectUrl)
   pendingCookies.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options)
   })

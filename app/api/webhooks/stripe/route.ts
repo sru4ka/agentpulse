@@ -38,10 +38,11 @@ export async function POST(request: Request) {
       case 'checkout.session.completed': {
         const session = event.data.object
         const customerEmail = session.customer_email || session.customer_details?.email
-        const plan = session.metadata?.plan
+        // Payment Links won't have metadata.plan — default to "pro"
+        const plan = session.metadata?.plan || 'pro'
 
-        if (!customerEmail || !plan) {
-          console.error('[stripe] Missing email or plan in session:', session.id)
+        if (!customerEmail) {
+          console.error('[stripe] Missing email in session:', session.id)
           break
         }
 
