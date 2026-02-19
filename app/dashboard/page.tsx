@@ -29,7 +29,45 @@ export default function DashboardPage() {
   const [liveConnected, setLiveConnected] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeResult>(getDateRange("today"));
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const supabase = createBrowserSupabaseClient();
+
+  // Shared fetch logic for events + stats
+  const fetchEventsAndStats = async (agentIds: string[], range: DateRangeResult) => {
+    const fromTs = toLocalISORange(range.from, false);
+    const toTs = toLocalISORange(range.to, true);
+
+    const [eventsRes, statsRes] = await Promise.all([
+      supabase
+        .from("events")
+        .select("*")
+        .in("agent_id", agentIds)
+        .gte("timestamp", fromTs)
+        .lte("timestamp", toTs)
+        .order("timestamp", { ascending: false })
+        .limit(200),
+      supabase
+        .from("daily_stats")
+        .select("*")
+        .in("agent_id", agentIds)
+        .gte("date", range.from)
+        .lte("date", range.to)
+        .order("date", { ascending: true }),
+    ]);
+
+    if (eventsRes.error) {
+      console.error("Events query error:", eventsRes.error);
+      setFetchError(`Failed to load events: ${eventsRes.error.message}`);
+    } else if (statsRes.error) {
+      console.error("Stats query error:", statsRes.error);
+      setFetchError(`Failed to load stats: ${statsRes.error.message}`);
+    } else {
+      setFetchError(null);
+    }
+
+    setEvents(eventsRes.data || []);
+    setDailyStats(statsRes.data || []);
+  };
 
   // Initial load — get agents + session + data in one shot
   useEffect(() => {
@@ -38,10 +76,17 @@ export default function DashboardPage() {
       if (!session) return;
       setAccessToken(session.access_token);
 
-      const { data: agentsData } = await supabase
+      const { data: agentsData, error: agentsError } = await supabase
         .from("agents")
         .select("*")
         .order("last_seen", { ascending: false });
+
+      if (agentsError) {
+        console.error("Agents query error:", agentsError);
+        setFetchError(`Failed to load agents: ${agentsError.message}`);
+        setLoading(false);
+        return;
+      }
 
       const agentList = agentsData || [];
       setAgents(agentList);
@@ -49,29 +94,7 @@ export default function DashboardPage() {
       // Fetch events + stats immediately (no waterfall)
       if (agentList.length > 0) {
         const agentIds = agentList.map((a: any) => a.id);
-        const fromTs = toLocalISORange(dateRange.from, false);
-        const toTs = toLocalISORange(dateRange.to, true);
-
-        const [eventsRes, statsRes] = await Promise.all([
-          supabase
-            .from("events")
-            .select("*")
-            .in("agent_id", agentIds)
-            .gte("timestamp", fromTs)
-            .lte("timestamp", toTs)
-            .order("timestamp", { ascending: false })
-            .limit(200),
-          supabase
-            .from("daily_stats")
-            .select("*")
-            .in("agent_id", agentIds)
-            .gte("date", dateRange.from)
-            .lte("date", dateRange.to)
-            .order("date", { ascending: true }),
-        ]);
-
-        setEvents(eventsRes.data || []);
-        setDailyStats(statsRes.data || []);
+        await fetchEventsAndStats(agentIds, dateRange);
       }
 
       setLoading(false);
@@ -91,34 +114,8 @@ export default function DashboardPage() {
       return;
     }
 
-    const fetchData = async () => {
-      const agentIds = agents.map((a) => a.id);
-      const fromTs = toLocalISORange(dateRange.from, false);
-      const toTs = toLocalISORange(dateRange.to, true);
-
-      const [eventsRes, statsRes] = await Promise.all([
-        supabase
-          .from("events")
-          .select("*")
-          .in("agent_id", agentIds)
-          .gte("timestamp", fromTs)
-          .lte("timestamp", toTs)
-          .order("timestamp", { ascending: false })
-          .limit(200),
-        supabase
-          .from("daily_stats")
-          .select("*")
-          .in("agent_id", agentIds)
-          .gte("date", dateRange.from)
-          .lte("date", dateRange.to)
-          .order("date", { ascending: true }),
-      ]);
-
-      setEvents(eventsRes.data || []);
-      setDailyStats(statsRes.data || []);
-    };
-
-    fetchData();
+    const agentIds = agents.map((a) => a.id);
+    fetchEventsAndStats(agentIds, dateRange);
   }, [accessToken, agents, dateRange]);
 
   // Real-time updates via SSE
@@ -197,6 +194,17 @@ export default function DashboardPage() {
         <DateRangeSelector value={dateRange.range} onChange={setDateRange} />
       </div>
 
+      {/* Error banner */}
+      {fetchError && (
+        <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-xl px-4 py-3 flex items-start gap-3">
+          <span className="text-[#EF4444] text-sm mt-0.5">!</span>
+          <div>
+            <p className="text-sm text-[#EF4444] font-medium">Data fetch error</p>
+            <p className="text-xs text-[#EF4444]/70 mt-0.5">{fetchError}</p>
+          </div>
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Cost" value={formatCost(totalCost)} subtitle={dateRange.label} />
@@ -204,6 +212,19 @@ export default function DashboardPage() {
         <StatCard title="API Calls" value={formatNumber(totalEvents)} subtitle={dateRange.label} />
         <StatCard title="Error Rate" value={errorRate} subtitle={`${totalErrors} errors`} />
       </div>
+
+      {/* Empty state for filtered view — suggest wider range */}
+      {!fetchError && agents.length > 0 && events.length === 0 && dateRange.range === "today" && (
+        <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 text-center">
+          <p className="text-[#A1A1AA] text-sm mb-3">No events recorded today. Your agents may not have sent events yet.</p>
+          <button
+            onClick={() => setDateRange(getDateRange("7d"))}
+            className="text-sm text-[#7C3AED] hover:text-[#8B5CF6] transition-colors underline underline-offset-2"
+          >
+            View last 7 days instead
+          </button>
+        </div>
+      )}
 
       {/* Cost chart */}
       <CostChart data={costChartData} />
