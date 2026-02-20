@@ -281,6 +281,10 @@ def _extract_response(provider, response_body):
         usage = resp.get("usage", {})
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
+        cache_read_tokens = usage.get("cache_read_input_tokens", 0)
+        cache_creation_tokens = usage.get("cache_creation_input_tokens", 0)
+        # Include cache tokens in input count for accurate cost tracking
+        input_tokens += cache_read_tokens + cache_creation_tokens
     else:
         # OpenAI-compatible
         choices = resp.get("choices", [])
@@ -325,7 +329,11 @@ def _extract_streaming_response(provider, response_body):
             elif etype == "message_start":
                 msg = event.get("message", {})
                 usage = msg.get("usage", {})
-                input_tokens = usage.get("input_tokens", input_tokens)
+                base_input = usage.get("input_tokens", 0)
+                cache_read = usage.get("cache_read_input_tokens", 0)
+                cache_creation = usage.get("cache_creation_input_tokens", 0)
+                # Include cache tokens for accurate cost tracking
+                input_tokens = base_input + cache_read + cache_creation
         else:
             # OpenAI-compatible streaming
             choices = event.get("choices", [])
