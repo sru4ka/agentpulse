@@ -172,7 +172,7 @@ MODEL_PRICING = {
     "gpt-4-turbo": {"input": 10, "output": 30},
     "gpt-4": {"input": 30, "output": 60},
     "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
-    "o3": {"input": 10, "output": 40},
+    "o3": {"input": 2, "output": 8},
     "o3-mini": {"input": 1.10, "output": 4.40},
     "o1": {"input": 15, "output": 60},
     "o1-mini": {"input": 3, "output": 12},
@@ -285,6 +285,10 @@ def extract_usage_from_api_response(response_json):
         u = response_json["usage"]
         input_t = u.get("prompt_tokens") or u.get("input_tokens") or 0
         output_t = u.get("completion_tokens") or u.get("output_tokens") or 0
+        # Anthropic cache tokens — must be included for accurate cost
+        cache_read = u.get("cache_read_input_tokens", 0)
+        cache_creation = u.get("cache_creation_input_tokens", 0)
+        input_t += cache_read + cache_creation
         if not input_t and not output_t and u.get("total_tokens"):
             total = u["total_tokens"]
             input_t = int(total * 0.7)
@@ -856,6 +860,10 @@ def _extract_response(provider, response_body):
         usage = resp.get("usage", {})
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
+        cache_read_tokens = usage.get("cache_read_input_tokens", 0)
+        cache_creation_tokens = usage.get("cache_creation_input_tokens", 0)
+        # Include cache tokens in input count for accurate cost tracking
+        input_tokens += cache_read_tokens + cache_creation_tokens
     else:
         choices = resp.get("choices", [])
         if choices and isinstance(choices[0], dict):
@@ -899,7 +907,11 @@ def _extract_streaming_response(provider, response_body):
             elif etype == "message_start":
                 msg = event.get("message", {})
                 usage = msg.get("usage", {})
-                input_tokens = usage.get("input_tokens", input_tokens)
+                base_input = usage.get("input_tokens", 0)
+                cache_read = usage.get("cache_read_input_tokens", 0)
+                cache_creation = usage.get("cache_creation_input_tokens", 0)
+                # Include cache tokens for accurate cost tracking
+                input_tokens = base_input + cache_read + cache_creation
         else:
             choices = event.get("choices", [])
             if choices and isinstance(choices[0], dict):
