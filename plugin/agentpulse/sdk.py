@@ -258,6 +258,11 @@ def _extract_event_from_response(response, provider=None, latency_ms=None, task_
         input_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
         output_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or 0
 
+        # Anthropic cache tokens — these are billed separately but must be counted
+        cache_read = usage.get("cache_read_input_tokens", 0)
+        cache_creation = usage.get("cache_creation_input_tokens", 0)
+        input_tokens += cache_read + cache_creation
+
         if not input_tokens and not output_tokens and usage.get("total_tokens"):
             total = usage["total_tokens"]
             input_tokens = int(total * 0.7)
@@ -404,6 +409,10 @@ class _OpenAIStreamWrapper:
                 usage = chunk.usage
                 self._input_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 self._output_tokens = getattr(usage, "completion_tokens", 0) or 0
+                # Include cache tokens if present (Anthropic + OpenAI caching)
+                cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+                cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+                self._input_tokens += cache_read + cache_creation
         except Exception:
             pass
 
@@ -524,7 +533,10 @@ class _AnthropicStreamWrapper:
                     self._model = getattr(msg, "model", self._model)
                     usage = getattr(msg, "usage", None)
                     if usage:
-                        self._input_tokens = getattr(usage, "input_tokens", 0) or 0
+                        base_input = getattr(usage, "input_tokens", 0) or 0
+                        cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+                        cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+                        self._input_tokens = base_input + cache_read + cache_creation
             elif event_type == "content_block_delta":
                 delta = getattr(event, "delta", None)
                 if delta:
