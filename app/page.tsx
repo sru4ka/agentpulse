@@ -392,30 +392,15 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Crypto + Stripe option */}
-          <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-[#141415] border border-[#7C3AED]/30 rounded-xl p-5 sm:p-6 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                  <line x1="1" y1="10" x2="23" y2="10" />
-                </svg>
-                <h3 className="text-[#FAFAFA] font-semibold">Pay with Credit Card</h3>
-              </div>
-              <p className="text-sm text-[#A1A1AA] mb-3">
-                Monthly subscription via Stripe. Cancel anytime.
-              </p>
-              <Link href="/dashboard/billing" className="inline-block bg-[#7C3AED]/10 hover:bg-[#7C3AED]/20 text-[#7C3AED] border border-[#7C3AED]/30 px-5 py-2 rounded-lg text-sm font-medium transition">
-                Subscribe Now
-              </Link>
-            </div>
+          {/* Crypto payment option */}
+          <div className="mt-6 sm:mt-8 max-w-md mx-auto">
             <div className="bg-[#141415] border border-[#F59E0B]/30 rounded-xl p-5 sm:p-6 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 <h3 className="text-[#FAFAFA] font-semibold">Pay with Crypto</h3>
               </div>
               <p className="text-sm text-[#A1A1AA] mb-3">
-                One-time ETH payment for lifetime access.
+                One-time ETH payment for lifetime access. No subscriptions.
               </p>
               <Link href="/pay/crypto" className="inline-block bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#F59E0B] border border-[#F59E0B]/30 px-5 py-2 rounded-lg text-sm font-medium transition">
                 Pay with ETH
