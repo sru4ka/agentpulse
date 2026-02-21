@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type DateRange = "today" | "7d" | "30d" | "90d" | "custom";
+export type DateRange = "today" | "yesterday" | "7d" | "30d" | "90d" | "custom";
 
 export interface DateRangeResult {
   range: DateRange;
@@ -25,6 +25,12 @@ export function getDateRange(range: DateRange, customFrom?: string, customTo?: s
   switch (range) {
     case "today":
       return { range, from: to, to, label: "Today" };
+    case "yesterday": {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      const y = toLocalDateString(d);
+      return { range, from: y, to: y, label: "Yesterday" };
+    }
     case "7d": {
       const d = new Date();
       d.setDate(d.getDate() - 7);
@@ -40,13 +46,17 @@ export function getDateRange(range: DateRange, customFrom?: string, customTo?: s
       d.setDate(d.getDate() - 90);
       return { range, from: toLocalDateString(d), to, label: "Last 90 days" };
     }
-    case "custom":
-      return { range, from: customFrom || to, to: customTo || to, label: "Custom" };
+    case "custom": {
+      const f = customFrom || to;
+      const t = customTo || to;
+      return { range, from: f, to: t, label: f === t ? f : `${f} — ${t}` };
+    }
   }
 }
 
 const OPTIONS: { value: DateRange; label: string }[] = [
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "7d", label: "7d" },
   { value: "30d", label: "30d" },
   { value: "90d", label: "90d" },
@@ -59,8 +69,19 @@ interface DateRangeSelectorProps {
 }
 
 export default function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [customFrom, setCustomFrom] = useState(() => toLocalDateString(new Date()));
+  const [customTo, setCustomTo] = useState(() => toLocalDateString(new Date()));
+  const [pendingCustom, setPendingCustom] = useState(false);
+
+  const applyCustom = (from: string, to: string) => {
+    // Swap if from > to
+    const f = from <= to ? from : to;
+    const t = from <= to ? to : from;
+    setCustomFrom(f);
+    setCustomTo(t);
+    setPendingCustom(false);
+    onChange(getDateRange("custom", f, t));
+  };
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -70,12 +91,8 @@ export default function DateRangeSelector({ value, onChange }: DateRangeSelector
             key={opt.value}
             onClick={() => {
               if (opt.value === "custom") {
-                const today = toLocalDateString(new Date());
-                const from = customFrom || today;
-                const to = customTo || today;
-                setCustomFrom(from);
-                setCustomTo(to);
-                onChange(getDateRange("custom", from, to));
+                setPendingCustom(false);
+                applyCustom(customFrom, customTo);
               } else {
                 onChange(getDateRange(opt.value));
               }
@@ -97,7 +114,7 @@ export default function DateRangeSelector({ value, onChange }: DateRangeSelector
             value={customFrom}
             onChange={(e) => {
               setCustomFrom(e.target.value);
-              onChange(getDateRange("custom", e.target.value, customTo));
+              setPendingCustom(true);
             }}
             className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-2.5 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED] [color-scheme:dark]"
           />
@@ -107,10 +124,20 @@ export default function DateRangeSelector({ value, onChange }: DateRangeSelector
             value={customTo}
             onChange={(e) => {
               setCustomTo(e.target.value);
-              onChange(getDateRange("custom", customFrom, e.target.value));
+              setPendingCustom(true);
             }}
             className="bg-[#141415] border border-[#2A2A2D] rounded-lg px-2.5 py-1.5 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#7C3AED] [color-scheme:dark]"
           />
+          <button
+            onClick={() => applyCustom(customFrom, customTo)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              pendingCustom
+                ? "bg-[#7C3AED] text-white"
+                : "bg-[#7C3AED]/20 text-[#7C3AED]"
+            }`}
+          >
+            Apply
+          </button>
         </div>
       )}
     </div>
