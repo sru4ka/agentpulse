@@ -179,9 +179,12 @@ export async function POST(request: Request) {
       // Anthropic
       'claude-opus-4': { input: 15, output: 75 },
       'claude-opus-4-6': { input: 15, output: 75 },
+      'claude-opus-4-5': { input: 15, output: 75 },
+      'claude-sonnet-4-6': { input: 3, output: 15 },
       'claude-sonnet-4-5': { input: 3, output: 15 },
       'claude-sonnet-4': { input: 3, output: 15 },
-      'claude-haiku-4': { input: 0.80, output: 4 },
+      'claude-haiku-4-5': { input: 1, output: 5 },
+      'claude-haiku-4': { input: 1, output: 5 },
       'claude-haiku-3.5': { input: 0.80, output: 4 },
       'claude-3.5-sonnet': { input: 3, output: 15 },
       'claude-3-opus': { input: 15, output: 75 },

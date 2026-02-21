@@ -59,9 +59,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   },
   'claude-opus-4': { provider: 'anthropic', model: 'claude-opus-4', inputPerMillion: 15, outputPerMillion: 75 },
   'claude-opus-4-6': { provider: 'anthropic', model: 'claude-opus-4-6', inputPerMillion: 15, outputPerMillion: 75 },
+  'claude-opus-4-5': { provider: 'anthropic', model: 'claude-opus-4-5', inputPerMillion: 15, outputPerMillion: 75 },
+  'claude-sonnet-4-6': { provider: 'anthropic', model: 'claude-sonnet-4-6', inputPerMillion: 3, outputPerMillion: 15 },
   'claude-sonnet-4-5': { provider: 'anthropic', model: 'claude-sonnet-4-5', inputPerMillion: 3, outputPerMillion: 15 },
   'claude-sonnet-4': { provider: 'anthropic', model: 'claude-sonnet-4', inputPerMillion: 3, outputPerMillion: 15 },
-  'claude-haiku-4': { provider: 'anthropic', model: 'claude-haiku-4', inputPerMillion: 0.80, outputPerMillion: 4 },
+  'claude-haiku-4-5': { provider: 'anthropic', model: 'claude-haiku-4-5', inputPerMillion: 1, outputPerMillion: 5 },
+  'claude-haiku-4': { provider: 'anthropic', model: 'claude-haiku-4', inputPerMillion: 1, outputPerMillion: 5 },
   'claude-haiku-3.5': { provider: 'anthropic', model: 'claude-haiku-3.5', inputPerMillion: 0.80, outputPerMillion: 4 },
   'claude-3.5-sonnet': { provider: 'anthropic', model: 'claude-3.5-sonnet', inputPerMillion: 3, outputPerMillion: 15 },
   'claude-3-opus': { provider: 'anthropic', model: 'claude-3-opus', inputPerMillion: 15, outputPerMillion: 75 },
@@ -297,8 +300,22 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'sonar': { provider: 'perplexity', model: 'sonar', inputPerMillion: 1, outputPerMillion: 1 },
 }
 
+function lookupPricing(model: string): ModelPricing | null {
+  // Exact match
+  if (MODEL_PRICING[model]) return MODEL_PRICING[model]
+  // Fuzzy: model contains known key or vice versa (handles date-suffixed names like claude-haiku-4-5-20251001)
+  const lower = model.toLowerCase()
+  // Sort keys by length descending so longer (more specific) keys match first
+  const sortedKeys = Object.keys(MODEL_PRICING).sort((a, b) => b.length - a.length)
+  for (const k of sortedKeys) {
+    const kl = k.toLowerCase()
+    if (lower.includes(kl) || kl.includes(lower)) return MODEL_PRICING[k]
+  }
+  return null
+}
+
 export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = MODEL_PRICING[model]
+  const pricing = lookupPricing(model)
   if (!pricing) return 0
   return (inputTokens / 1_000_000) * pricing.inputPerMillion + (outputTokens / 1_000_000) * pricing.outputPerMillion
 }
