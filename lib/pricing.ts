@@ -67,6 +67,8 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-haiku-4': { provider: 'anthropic', model: 'claude-haiku-4', inputPerMillion: 1, outputPerMillion: 5 },
   'claude-haiku-3.5': { provider: 'anthropic', model: 'claude-haiku-3.5', inputPerMillion: 0.80, outputPerMillion: 4 },
   'claude-3.5-sonnet': { provider: 'anthropic', model: 'claude-3.5-sonnet', inputPerMillion: 3, outputPerMillion: 15 },
+  'claude-3-5-sonnet': { provider: 'anthropic', model: 'claude-3-5-sonnet', inputPerMillion: 3, outputPerMillion: 15 },
+  'claude-3-5-haiku': { provider: 'anthropic', model: 'claude-3-5-haiku', inputPerMillion: 0.80, outputPerMillion: 4 },
   'claude-3-opus': { provider: 'anthropic', model: 'claude-3-opus', inputPerMillion: 15, outputPerMillion: 75 },
   'claude-3-sonnet': { provider: 'anthropic', model: 'claude-3-sonnet', inputPerMillion: 3, outputPerMillion: 15 },
   'claude-3-haiku': { provider: 'anthropic', model: 'claude-3-haiku', inputPerMillion: 0.25, outputPerMillion: 1.25 },

@@ -166,6 +166,8 @@ MODEL_PRICING = {
     "claude-haiku-4": {"input": 1, "output": 5},
     "claude-haiku-3.5": {"input": 0.80, "output": 4},
     "claude-3.5-sonnet": {"input": 3, "output": 15},
+    "claude-3-5-sonnet": {"input": 3, "output": 15},
+    "claude-3-5-haiku": {"input": 0.80, "output": 4},
     "claude-3-opus": {"input": 15, "output": 75},
     "claude-3-sonnet": {"input": 3, "output": 15},
     "claude-3-haiku": {"input": 0.25, "output": 1.25},
