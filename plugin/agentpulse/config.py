@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {
     "log_path": "",  # auto-detected at load time
     "poll_interval": 5,
     "batch_interval": 30,
-    "proxy_enabled": False,
+    "proxy_enabled": True,
     "proxy_port": 8787,
 }
 

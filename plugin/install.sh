@@ -112,7 +112,7 @@ DEFAULT_CONFIG = {
     "log_path": "",
     "poll_interval": 5,
     "batch_interval": 30,
-    "proxy_enabled": False,
+    "proxy_enabled": True,
     "proxy_port": 8787,
 }
 
@@ -1238,6 +1238,18 @@ class AgentPulseDaemon:
             port = self.config.get("proxy_port", 8787)
             self._proxy = LLMProxyServer(port=port)
             self._proxy.start()
+
+            # Auto-set env vars so child processes (e.g. OpenClaw) route
+            # LLM API calls through the proxy without manual configuration
+            env_map = {
+                "ANTHROPIC_BASE_URL": "anthropic",
+                "OPENAI_BASE_URL": "openai",
+                "MINIMAX_BASE_URL": "minimax",
+                "DEEPSEEK_BASE_URL": "deepseek",
+            }
+            for env_var, provider in env_map.items():
+                os.environ[env_var] = f"http://127.0.0.1:{port}/{provider}"
+            logger.info("Auto-set provider BASE_URL env vars for proxy routing")
         except Exception as e:
             logger.error(f"Failed to start proxy: {e}")
 
