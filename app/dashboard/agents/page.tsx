@@ -23,7 +23,7 @@ function toLocalISORange(dateStr: string, end: boolean): string {
 const CACHE_KEY = "agents-page";
 
 export default function AgentsPage() {
-  const { agents, agentsLoaded, supabase, get, set } = useDashboardCache();
+  const { agents, agentsLoaded, supabase, get, set, refreshAgents } = useDashboardCache();
 
   const cached = get(CACHE_KEY);
   const [agentCosts, setAgentCosts] = useState<Record<string, number>>(cached?.agentCosts || {});
@@ -62,6 +62,16 @@ export default function AgentsPage() {
 
   const agentList = agents || [];
 
+  const handleDelete = async (agentId: string) => {
+    const { error } = await supabase.from("agents").delete().eq("id", agentId);
+    if (!error) {
+      await refreshAgents();
+      const newCosts = { ...agentCosts };
+      delete newCosts[agentId];
+      setAgentCosts(newCosts);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[#FAFAFA]">Agents</h1>
@@ -79,7 +89,7 @@ export default function AgentsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {agentList.map((agent: any) => (
-            <AgentCard key={agent.id} agent={agent} todayCost={agentCosts[agent.id] || 0} />
+            <AgentCard key={agent.id} agent={agent} todayCost={agentCosts[agent.id] || 0} onDelete={handleDelete} />
           ))}
         </div>
       )}

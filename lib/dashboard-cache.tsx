@@ -22,6 +22,8 @@ interface DashboardCacheCtx {
   get: (key: string) => any | null;
   /** Store data in cache by key. */
   set: (key: string, data: any) => void;
+  /** Re-fetch agents from Supabase and update state. */
+  refreshAgents: () => Promise<void>;
 }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -80,8 +82,16 @@ export function DashboardCacheProvider({ children }: { children: React.ReactNode
     cache.current.set(key, { data, ts: Date.now() });
   }, []);
 
+  const refreshAgents = useCallback(async () => {
+    const { data } = await supabase
+      .from("agents")
+      .select("*")
+      .order("last_seen", { ascending: false });
+    setAgents(data || []);
+  }, [supabase]);
+
   return (
-    <Ctx.Provider value={{ agents, agentsLoaded, plan, accessToken, supabase, get, set }}>
+    <Ctx.Provider value={{ agents, agentsLoaded, plan, accessToken, supabase, get, set, refreshAgents }}>
       {children}
     </Ctx.Provider>
   );
