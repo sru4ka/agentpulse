@@ -118,7 +118,7 @@ export default function DashboardPage() {
 
   // Calculate stats from events using correct pricing
   const totalCost = events.reduce((s, e) => s + recalculateEventCost(e), 0);
-  const totalTokens = events.reduce((s, e) => s + (e.total_tokens || e.input_tokens || 0) + (e.output_tokens || 0), 0);
+  const totalTokens = events.reduce((s, e) => s + (e.input_tokens || 0) + (e.output_tokens || 0), 0);
   const totalEvents = events.length;
   const totalErrors = events.filter((e) => e.status === "error" || e.status === "rate_limit").length;
 

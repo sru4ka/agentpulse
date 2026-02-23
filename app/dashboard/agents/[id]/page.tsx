@@ -57,8 +57,8 @@ export default function AgentDetailPage() {
     if (!agent) return;
 
     const fetchData = async () => {
-      const fromTs = dateRange.from + "T00:00:00";
-      const toTs = dateRange.to + "T23:59:59";
+      const fromTs = toLocalISORange(dateRange.from, false);
+      const toTs = toLocalISORange(dateRange.to, true);
 
       const [eventsRes, statsRes] = await Promise.all([
         supabase
