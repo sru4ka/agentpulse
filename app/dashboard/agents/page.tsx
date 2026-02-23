@@ -63,8 +63,16 @@ export default function AgentsPage() {
   const agentList = agents || [];
 
   const handleDelete = async (agentId: string) => {
-    const { error } = await supabase.from("agents").delete().eq("id", agentId);
-    if (!error) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+
+    const res = await fetch(`/api/agents/${agentId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.ok) {
       await refreshAgents();
       const newCosts = { ...agentCosts };
       delete newCosts[agentId];
