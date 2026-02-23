@@ -7,7 +7,7 @@ const PLAN_DETAILS: Record<string, { name: string; color: string; features: stri
   free: {
     name: "Free",
     color: "#A1A1AA",
-    features: ["1 agent", "7 days history", "Basic dashboard"],
+    features: ["1 agent", "10,000 events/month", "Full dashboard", "Basic alerts", "7 days history"],
   },
   pro: {
     name: "Pro",

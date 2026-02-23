@@ -21,11 +21,7 @@ const PLAN_RANK: Record<string, number> = {
 };
 
 // Minimum plan required for each route (omitted = free / always accessible)
-const PLAN_REQUIRED: Record<string, string> = {
-  "/dashboard/events": "pro",
-  "/dashboard/costs": "pro",
-  "/dashboard/alerts": "pro",
-};
+const PLAN_REQUIRED: Record<string, string> = {};
 
 const navItems = [
   {
@@ -97,6 +93,18 @@ const navItems = [
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M3 10.5L8 15.5L17 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    label: "Share Report",
+    href: "/dashboard/share",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="15" cy="4" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="5" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="15" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M7.5 8.75L12.5 5.25M7.5 11.25L12.5 14.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -226,6 +234,16 @@ export default function Sidebar({ user }: SidebarProps) {
           </button>
         </div>
       )}
+
+      {/* Powered by AgentPulse */}
+      <div className="px-4 py-2">
+        <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#3F3F46]">
+          <svg width="10" height="10" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="8" fill="#7C3AED" fillOpacity="0.4" />
+          </svg>
+          <span>Tracked by <a href="https://agentpulses.com" className="text-[#7C3AED]/60 hover:text-[#7C3AED] transition-colors">AgentPulse</a></span>
+        </div>
+      </div>
 
       {/* User / Sign Out */}
       <div className="px-4 py-4 border-t border-[#2A2A2D]">
