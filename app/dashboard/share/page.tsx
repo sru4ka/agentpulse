@@ -72,17 +72,27 @@ export default function ShareReportPage() {
     ? (agents?.length === 1 ? agents[0].name : "All Agents")
     : agents?.find((a: any) => a.id === selectedAgent)?.name || "Agent";
 
-  // Generate share text
+  // Clean up task name for display (truncate UUIDs, session IDs, etc.)
+  const cleanTaskName = (name: string): string => {
+    // Strip "session:" prefix and UUID-like strings
+    let clean = name.replace(/^session:/, "").replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "").trim();
+    if (!clean) clean = "Session task";
+    // Truncate long names
+    if (clean.length > 24) clean = clean.slice(0, 22) + "...";
+    return clean;
+  };
+
+  // Generate share text with emojis for X
   const shareText = [
-    `My AI Agent: ${agentName}`,
-    `${monthName}`,
-    `Total spend: ${formatCost(totalCost)}`,
-    `${formatNumber(totalCalls)} API calls`,
-    `Avg latency: ${formatLatency(avgLatency)}`,
-    cheapestTask ? `Cheapest task: ${cheapestTask.task} (${formatCost(cheapestTask.avgCost)}/call)` : "",
-    expensiveTask ? `Most expensive: ${expensiveTask.task} (${formatCost(expensiveTask.avgCost)}/call)` : "",
+    `\u{1F916} My AI Agent: ${agentName}`,
+    `\u{1F4C5} ${monthName}`,
+    `\u{1F4B0} Total spend: ${formatCost(totalCost)}`,
+    `\u{1F4CA} ${formatNumber(totalCalls)} API calls`,
+    `\u26A1 Avg latency: ${formatLatency(avgLatency)}`,
+    cheapestTask ? `\u{1F3C6} Cheapest task: ${cleanTaskName(cheapestTask.task)} (${formatCost(cheapestTask.avgCost)}/call)` : "",
+    expensiveTask ? `\u{1F4B8} Most expensive: ${cleanTaskName(expensiveTask.task)} (${formatCost(expensiveTask.avgCost)}/call)` : "",
     "",
-    "Track yours free at agentpulses.com",
+    "Track yours free \u2192 agentpulses.com",
   ].filter(Boolean).join("\n");
 
   const shareOnX = () => {
@@ -185,7 +195,7 @@ export default function ShareReportPage() {
                     <span className="text-sm text-[#A1A1AA]">Cheapest task</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-[#FAFAFA]">{cheapestTask.task}</span>
+                    <span className="text-sm font-medium text-[#FAFAFA]">{cleanTaskName(cheapestTask.task)}</span>
                     <span className="text-xs text-[#10B981] ml-2">{formatCost(cheapestTask.avgCost)}/call</span>
                   </div>
                 </div>
@@ -197,7 +207,7 @@ export default function ShareReportPage() {
                     <span className="text-sm text-[#A1A1AA]">Most expensive</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-medium text-[#FAFAFA]">{expensiveTask.task}</span>
+                    <span className="text-sm font-medium text-[#FAFAFA]">{cleanTaskName(expensiveTask.task)}</span>
                     <span className="text-xs text-[#EF4444] ml-2">{formatCost(expensiveTask.avgCost)}/call</span>
                   </div>
                 </div>
