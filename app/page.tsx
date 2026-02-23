@@ -343,9 +343,10 @@ export default function LandingPage() {
               </div>
               <ul className="space-y-3 text-sm text-[#A1A1AA] mb-8">
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> 1 agent</li>
+                <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> 10,000 events/month</li>
+                <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Full dashboard</li>
+                <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Basic alerts</li>
                 <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> 7 days history</li>
-                <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Basic cost tracking</li>
-                <li className="flex items-center gap-2"><span className="text-[#10B981]">&#10003;</span> Daily email summary</li>
               </ul>
               <Link href="/signup" className="block w-full text-center border border-[#2A2A2D] hover:border-[#3A3A3D] text-[#FAFAFA] px-4 py-2.5 rounded-lg text-sm font-medium transition">
                 Get Started

@@ -94,12 +94,12 @@ export async function POST(request: Request) {
 
     const supabase = createServerSupabaseClient()
 
-    // Plan limits: max agents and history retention (days)
-    const PLAN_LIMITS: Record<string, { maxAgents: number; historyDays: number }> = {
-      free: { maxAgents: 1, historyDays: 7 },
-      pro: { maxAgents: 5, historyDays: 90 },
-      team: { maxAgents: 25, historyDays: 365 },
-      enterprise: { maxAgents: 999, historyDays: 99999 },
+    // Plan limits: max agents, history retention (days), and monthly event cap
+    const PLAN_LIMITS: Record<string, { maxAgents: number; historyDays: number; monthlyEvents: number }> = {
+      free: { maxAgents: 1, historyDays: 7, monthlyEvents: 10000 },
+      pro: { maxAgents: 5, historyDays: 90, monthlyEvents: Infinity },
+      team: { maxAgents: 25, historyDays: 365, monthlyEvents: Infinity },
+      enterprise: { maxAgents: 999, historyDays: 99999, monthlyEvents: Infinity },
     }
 
     // Look up user by API key
@@ -166,6 +166,26 @@ export async function POST(request: Request) {
         .from('agents')
         .update({ last_seen: new Date().toISOString() })
         .eq('id', agent.id)
+    }
+
+    // Enforce monthly event limit for free tier
+    if (limits.monthlyEvents < Infinity) {
+      const monthStart = new Date()
+      monthStart.setDate(1)
+      monthStart.setHours(0, 0, 0, 0)
+
+      const { count: monthlyCount } = await supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('agent_id', agent!.id)
+        .gte('timestamp', monthStart.toISOString())
+
+      if ((monthlyCount || 0) + events.length > limits.monthlyEvents) {
+        return NextResponse.json(
+          { error: `Monthly event limit reached (${limits.monthlyEvents.toLocaleString()} on ${plan} plan). Upgrade at https://agentpulses.com/pricing` },
+          { status: 403 }
+        )
+      }
     }
 
     // Comprehensive model pricing per million tokens (server-side fallback)
