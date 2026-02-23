@@ -358,7 +358,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-lg font-semibold text-[#FAFAFA]">Pro</h3>
               <div className="mt-4 mb-6">
-                <span className="text-4xl font-bold text-[#FAFAFA]">$29</span>
+                <span className="text-4xl font-bold text-[#FAFAFA]">$14.50</span>
                 <span className="text-[#A1A1AA]">/month</span>
               </div>
               <ul className="space-y-3 text-sm text-[#A1A1AA] mb-8">
@@ -376,7 +376,7 @@ export default function LandingPage() {
             <div className="bg-[#141415] border border-[#2A2A2D] rounded-xl p-6 sm:p-8">
               <h3 className="text-lg font-semibold text-[#FAFAFA]">Team</h3>
               <div className="mt-4 mb-6">
-                <span className="text-4xl font-bold text-[#FAFAFA]">$99</span>
+                <span className="text-4xl font-bold text-[#FAFAFA]">$49.50</span>
                 <span className="text-[#A1A1AA]">/month</span>
               </div>
               <ul className="space-y-3 text-sm text-[#A1A1AA] mb-8">

@@ -48,8 +48,8 @@ export async function POST(request: Request) {
         email,
         tx_hash,
         plan,
-        amount_eth: plan === 'pro' ? '0.065' : '0.16',
-        amount_usd: plan === 'pro' ? 199 : 499,
+        amount_eth: plan === 'pro' ? '0.033' : '0.08',
+        amount_usd: plan === 'pro' ? 99 : 249,
         status: 'pending',
       })
       .select()
@@ -77,8 +77,8 @@ export async function POST(request: Request) {
 const ETH_RPC_URL = process.env.ETH_RPC_URL || 'https://eth.llamarpc.com'
 const RECEIVING_WALLET = process.env.ETH_RECEIVING_WALLET || ''
 const PLAN_ETH_AMOUNTS: Record<string, number> = {
-  pro: 0.060,
-  team: 0.150,
+  pro: 0.030,
+  team: 0.075,
 }
 
 async function ethRpc(method: string, params: any[]) {
@@ -142,7 +142,7 @@ async function verifyTransaction(
 
     try {
       const { sendPaymentConfirmationEmail } = await import('@/lib/email')
-      await sendPaymentConfirmationEmail(email, plan, plan === 'pro' ? 199 : 499, txHash)
+      await sendPaymentConfirmationEmail(email, plan, plan === 'pro' ? 99 : 249, txHash)
     } catch {}
 
     return { status: 'confirmed', message: `Payment confirmed! Your account has been upgraded to ${plan}.` }

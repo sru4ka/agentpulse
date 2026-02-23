@@ -13,8 +13,8 @@ const RECEIVING_WALLET = process.env.ETH_RECEIVING_WALLET || ''
 
 // Minimum ETH amounts per plan (with 5% tolerance for gas fluctuations)
 const PLAN_ETH_AMOUNTS: Record<string, number> = {
-  pro: 0.060,   // ~$199 at ~$3300/ETH, with tolerance
-  team: 0.150,  // ~$499 at ~$3300/ETH, with tolerance
+  pro: 0.030,   // ~$99 at ~$3300/ETH, with tolerance
+  team: 0.075,  // ~$249 at ~$3300/ETH, with tolerance
 }
 
 interface EthTransaction {

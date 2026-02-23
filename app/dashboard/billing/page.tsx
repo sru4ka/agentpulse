@@ -159,12 +159,12 @@ export default function BillingPage() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="border border-[#2A2A2D] rounded-xl p-4">
                 <h4 className="text-sm font-semibold text-[#FAFAFA]">Pro Lifetime</h4>
-                <div className="text-2xl font-bold text-[#FAFAFA] mt-1">$199</div>
+                <div className="text-2xl font-bold text-[#FAFAFA] mt-1">$99</div>
                 <p className="text-xs text-[#A1A1AA] mt-1">One-time payment</p>
               </div>
               <div className="border border-[#2A2A2D] rounded-xl p-4">
                 <h4 className="text-sm font-semibold text-[#FAFAFA]">Team Lifetime</h4>
-                <div className="text-2xl font-bold text-[#FAFAFA] mt-1">$499</div>
+                <div className="text-2xl font-bold text-[#FAFAFA] mt-1">$249</div>
                 <p className="text-xs text-[#A1A1AA] mt-1">One-time payment</p>
               </div>
             </div>
