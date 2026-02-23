@@ -5,8 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 // Returns a URL to redirect the user to Stripe's hosted checkout page.
 
 const PLAN_PRICES: Record<string, { amount: number; name: string }> = {
-  pro_monthly: { amount: 2900, name: 'AgentPulse Pro (Monthly)' },
-  team_monthly: { amount: 9900, name: 'AgentPulse Team (Monthly)' },
+  pro_monthly: { amount: 1450, name: 'AgentPulse Pro (Monthly)' },
+  team_monthly: { amount: 4950, name: 'AgentPulse Team (Monthly)' },
 }
 
 export async function POST(request: Request) {

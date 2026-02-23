@@ -6,15 +6,15 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro Lifetime",
-    price: "$199",
-    ethPrice: "~0.065 ETH",
+    price: "$99",
+    ethPrice: "~0.033 ETH",
     features: ["5 agents", "90 days history", "Smart alerts", "Recommendations", "CSV export"],
   },
   {
     id: "team",
     name: "Team Lifetime",
-    price: "$499",
-    ethPrice: "~0.16 ETH",
+    price: "$249",
+    ethPrice: "~0.08 ETH",
     features: ["25 agents", "1 year history", "Team dashboard", "API access", "Webhooks", "Priority support"],
   },
 ];
