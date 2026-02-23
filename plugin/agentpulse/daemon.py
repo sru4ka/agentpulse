@@ -263,8 +263,7 @@ class AgentPulseDaemon:
             self._proxy = LLMProxyServer(port=port)
             self._proxy.start()
 
-            # Auto-set env vars so child processes (e.g. OpenClaw) route
-            # LLM API calls through the proxy without manual configuration
+            # Auto-set env vars so child processes route through the proxy
             env_map = {
                 "ANTHROPIC_BASE_URL": "anthropic",
                 "OPENAI_BASE_URL": "openai",
@@ -273,9 +272,36 @@ class AgentPulseDaemon:
             }
             for env_var, provider in env_map.items():
                 os.environ[env_var] = f"http://127.0.0.1:{port}/{provider}"
+
+            # Also persist to shell rc file so restarted processes pick them up
+            self._persist_proxy_env(port, env_map)
             logger.info("Auto-set provider BASE_URL env vars for proxy routing")
         except Exception as e:
             logger.error(f"Failed to start proxy: {e}")
+
+    @staticmethod
+    def _persist_proxy_env(port, env_map):
+        """Write proxy env vars to .bashrc so other processes can source them."""
+        marker = "# agentpulse-proxy"
+        home = os.path.expanduser("~")
+        rc_path = os.path.join(home, ".bashrc") if os.path.exists(os.path.join(home, ".bashrc")) else os.path.join(home, ".profile")
+
+        export_lines = [
+            f'export {env_var}=http://127.0.0.1:{port}/{provider}  {marker}'
+            for env_var, provider in env_map.items()
+        ]
+        try:
+            existing = ""
+            if os.path.exists(rc_path):
+                with open(rc_path, "r") as f:
+                    existing = f.read()
+            lines = [l for l in existing.splitlines() if marker not in l]
+            lines.extend(export_lines)
+            with open(rc_path, "w") as f:
+                f.write("\n".join(lines) + "\n")
+            logger.info(f"Persisted proxy env vars to {rc_path}")
+        except Exception as e:
+            logger.warning(f"Could not persist proxy env to {rc_path}: {e}")
 
     def _stop_proxy(self):
         """Stop the LLM proxy if running."""
